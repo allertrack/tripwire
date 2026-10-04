@@ -328,6 +328,9 @@ async function tick() {
         .then((p) => ({ oracle: (p.oraclePNS * 10n ** 8n) / 10n ** p.priceDecimals, mark: (p.markPNS * 10n ** 8n) / 10n ** p.priceDecimals })).catch(() => null),
     ])
     const now = Number(block.timestamp)
+    // Paint the live state first; the activity history can follow.
+    renderStatus(status, now)
+    renderMarket(market, feed, perp, now)
     if (scannedTo === 0n) await backfill(head)
     else {
       // Re-read the last 20 blocks every tick (RPC log indexing can trail the head by a few blocks; duplicates are
@@ -341,8 +344,6 @@ async function tick() {
       }
       renderFeed()
     }
-    renderStatus(status, now)
-    renderMarket(market, feed, perp, now)
     $('blockLbl').textContent = `block ${head.toLocaleString('en-US')}`
     $('liveDot').className = 'dot'
     showError('')
