@@ -68,6 +68,7 @@
   .acct div { background: var(--soft); border-radius: 10px; padding: 10px 12px; }
   .acct b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
   .acct span { color: var(--muted); font-size: 12px; }
+  .acct a, td a { color: var(--accent); text-decoration: none; }
   .empty { color: var(--muted); padding: 10px 4px; }
   .err { background: var(--bad-bg); color: var(--bad); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; display: none; }
   .two { display: grid; grid-template-columns: 1fr; gap: 0; }
@@ -107,7 +108,7 @@
   </section>
 
   <section class="card">
-    <h2>Liquidation radar <span>· positions closest to their liquidation price, across all markets · click a row to inspect the wallet</span></h2>
+    <h2>Liquidation radar <span>· positions ≥ $100 notional closest to their liquidation price, across all markets · click a row to inspect the wallet</span></h2>
     <div class="scroll"><table>
       <thead><tr><th>Market</th><th>Side</th><th class="n">Size</th><th class="n">Entry</th><th class="n">Liq. price</th><th class="n">Distance</th><th class="n">Leverage</th><th class="n">Notional</th><th class="n">Account</th></tr></thead>
       <tbody id="radar"><tr><td colspan="9" class="empty">Scanning positions…</td></tr></tbody>
@@ -133,6 +134,8 @@ const NETS = {
 }
 // Tripwire's default PERP_DISLOCATION ladder (bps): Caution / Restricted / Frozen.
 const LADDER = [150, 400, 1000]
+// The radar hides dust: positions under this notional (USD) are counted in the KPIs but not ranked.
+const MIN_NOTIONAL = 100
 const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11'
 const POSITION = 'struct Position { uint256 accountId; uint256 nextNodeId; uint256 prevNodeId; uint8 positionType; uint256 depositCNS; uint256 pricePNS; uint256 lotLNS; uint256 entryBlock; int256 pnlCNS; int256 deltaPnlCNS; int256 premiumPnlCNS; uint256 priceResiduePNSQ16; }'
 const ACCOUNT = 'struct Account { uint256 accountId; uint256 balanceCNS; uint256 lockedBalanceCNS; uint8 frozen; address accountAddr; Banks positions; }'
@@ -265,9 +268,9 @@ function renderMarkets() {
 }
 
 function renderRadar() {
-  $('radar').innerHTML = positions.slice(0, 15).map((r) => {
+  $('radar').innerHTML = positions.filter((r) => r.notional >= MIN_NOTIONAL).slice(0, 15).map((r) => {
     const [bc] = band(r.distance)
-    return `<tr class="click" data-account="${r.accountId}"><td><b>${r.symbol}</b></td><td class="${r.side > 0 ? 'long' : 'short'}">${r.side > 0 ? 'LONG' : 'SHORT'}</td><td class="n">${r.size.toLocaleString('en-US', { maximumFractionDigits: r.lotDecimals })}</td><td class="n">${usd(r.entry, r.priceDecimals)}</td><td class="n">${usd(r.liq, r.priceDecimals)}</td><td class="n"><span class="tag ${bc}">${pct(r.distance, 1)}</span></td><td class="n">${Number.isFinite(r.leverage) ? r.leverage.toFixed(1) + 'x' : '∞'}</td><td class="n">${compact(r.notional)}</td><td class="n mono">#${r.accountId}</td></tr>`
+    return `<tr class="click" data-account="${r.accountId}" data-notional="${r.notional.toFixed(2)}"><td><b>${r.symbol}</b></td><td class="${r.side > 0 ? 'long' : 'short'}">${r.side > 0 ? 'LONG' : 'SHORT'}</td><td class="n">${r.size.toLocaleString('en-US', { maximumFractionDigits: r.lotDecimals })}</td><td class="n">${usd(r.entry, r.priceDecimals)}</td><td class="n">${usd(r.liq, r.priceDecimals)}</td><td class="n"><span class="tag ${bc}">${pct(r.distance, 1)}</span></td><td class="n">${Number.isFinite(r.leverage) ? r.leverage.toFixed(1) + 'x' : '∞'}</td><td class="n">${compact(r.notional)}</td><td class="n mono">#${r.accountId}</td></tr>`
   }).join('') || '<tr><td colspan="9" class="empty">No open positions.</td></tr>'
   for (const tr of $('radar').querySelectorAll('tr.click')) tr.onclick = () => inspectAccountId(BigInt(tr.dataset.account))
 }

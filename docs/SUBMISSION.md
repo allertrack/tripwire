@@ -121,34 +121,40 @@ No login needed.
 
 ### Chainlink: Best workflow with CRE
 
-- **Trigger:** cron, every 30 s.
-- **EVM read capability on Monad testnet**, at the finalized head:
-  - the market snapshot;
-  - the guard status;
-  - the **Chainlink ETH/USD Data Feed**;
-  - Perpl's perpetual, whose oracle is **Chainlink Data Streams**.
-- **HTTP capability + consensus:** `runInNodeMode` fetches three exchanges. Each node returns the median of those that answered (at least two), and the DON aggregates with `consensusMedianAggregation`.
-- **Reports + EVM write:** DON-signed reports go through the Forwarder to `TripwireGuard.onReport`.
-  - The receiver authenticates the Forwarder and the workflow identity.
-  - Every payload carries `(chainSelector, guard)`, because Forwarder signatures do not cover the receiver.
-  - The workflow fails loudly if the receiver reverts.
-- **Determinism and quotas:**
-  - bigint-only model;
-  - the cron's scheduled time as `observedAt`;
-  - 2 + 2×markets EVM reads, so up to 6 markets per workflow;
-  - 3 HTTP calls;
-  - writes only when needed;
-  - a 150k gas limit, against 98.8k measured, because Monad charges the gas limit.
-- **Tested:**
-  - 55 bun tests on the CRE SDK test runtime, with EVM and HTTP mocks;
-  - a golden report shared with Solidity;
-  - WASM compile in CI;
-  - end-to-end `cre workflow simulate --broadcast` on Monad testnet (the demo video) and on a local fork (`make e2e`).
+**Q1: Describe how your project meaningfully utilizes Chainlink CRE as an orchestration layer.**
 
-### Perpl: Best Analytics/Risk Tool
+Tripwire's watcher is a single CRE workflow, and CRE is what makes it trustworthy enough to hold a pause button. Every 30 seconds, one execution orchestrates four capabilities into one enforced decision:
 
-Tripwire turns Perpl's on-chain state into a risk signal for other Monad protocols. It reads `getPerpetualInfoV2` on Perpl's exchange (ETH perp, id 32) through CRE.
-- **Third price reference.** Perpl's oracle price (Chainlink Data Streams, verified by the exchange) joins the Chainlink Data Feed and the exchange median.
-- **Stress signal.** When the order book's mark price dislocates from the oracle, the `PERP_DISLOCATION` reason moves dependent markets to Caution or Restricted, on a configurable ladder.
-- **Hygiene.** Stale data and `ignOracle` markets are excluded automatically.
-- **Visibility.** The live monitor shows Perpl's oracle and mark next to the other references, and every report packs the dislocation in its metrics.
+1. **Trigger.** A cron trigger. The scheduled time becomes the report's `observedAt`, so every node agrees on time.
+2. **EVM reads on Monad (finalized head).** In one run the workflow reads:
+   - the protected market's risk snapshot (its own oracle price and age, supply, borrows, trailing outflow);
+   - the guard's state;
+   - the **Chainlink ETH/USD Data Feed**;
+   - Perpl's perpetual, whose oracle is **Chainlink Data Streams** and whose order-book mark price is a stress signal.
+3. **HTTP capability with DON consensus.** `runInNodeMode` fetches Coinbase, Kraken and Bitstamp. Each node returns the median of the exchanges that answered (at least two), and the DON aggregates with `consensusMedianAggregation`. Off-chain prices become a single DON-agreed reference.
+4. **Deterministic risk logic.** It runs identically on every node (bigints only, decimal strings parsed exactly). The market's oracle is compared with the closest of three independent references, together with reference spread, oracle staleness, utilization, outflow velocity and perp dislocation, and the result is a level plus reasons. The report commits to an evidence hash of all inputs.
+5. **Report + EVM write.** The DON-signed report goes through the Forwarder to `TripwireGuard.onReport`.
+   - The guard authenticates the Forwarder and the workflow identity.
+   - The payload is bound to `(chainSelector, guard)`, because Forwarder signatures do not cover the receiver.
+   - The workflow checks the receiver's execution status and fails loudly on a revert.
+   - Writes happen only when they matter: a stricter level, a changed view, fresh evidence for a matured relax proposal, or a heartbeat.
+   - The gas limit is sized to Monad, which charges the limit: 150k against 98.8k measured.
+
+**The result:** CRE turns off-chain and cross-protocol data into an on-chain enforcement action that integrators consume with one SLOAD. One of those integrators is Aave V3, through its PriceOracleSentinel hook, proven against Aave's code. The guard accepts that action only in the safe direction: CRE reports can tighten, never loosen.
+
+Engineering: 55 tests on the CRE SDK test runtime with EVM and HTTP mocks, a golden report shared byte for byte with Solidity, a WASM compile in CI, and end-to-end runs with `cre workflow simulate --broadcast` on Monad testnet (video) and on a local fork (`make e2e`).
+
+**Q2: Demo video (≤ 2 min).** YouTube upload of `tools/video/out/tripwire-cre-demo.mp4` (1:58). It is a real-time recording of the CRE CLI simulation broadcasting to Monad testnet.
+
+### Perpl: Best Analytics / Risk Tool
+
+**Q1: Dashboard link.** https://allertrack.github.io/tripwire/perpl.html
+
+The Tripwire Perpl Risk Monitor is a live, read-only view of Perpl's on-chain state on Monad mainnet and testnet, with no backend.
+- **Protocol level:**
+  - collateral in the exchange, insurance funds, open interest, accounts, and notional within 10% of liquidation;
+  - per market: mark vs. the Chainlink Data Streams oracle (with the Tripwire level this dislocation would trigger), oracle age, funding, insurance cover, positions and nearest liquidation;
+  - a liquidation radar that scans every open position and ranks them by distance to their liquidation price, computed with Perpl's documented formula.
+- **Wallet level:** for any address, collateral, equity, notional and, per position, leverage, unrealized and funding PnL, liquidation price and distance.
+
+**Q2: Demo video (≤ 2 min).** YouTube upload of `tools/video/out/tripwire-perpl-demo.mp4` (1:13).

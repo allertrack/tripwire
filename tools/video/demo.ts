@@ -3,7 +3,8 @@
  * left, the actual terminal output on the right), with narration and subtitles. No slides.
  *
  *   bun demo.ts record   # drives the scenario on Monad testnet and records out/demo-raw.mp4 + out/demo-marks.json
- *   bun demo.ts render   # cuts the relax-delay wait, adds narration -> out/tripwire-technical-demo.mp4 (+ .srt)
+ *   bun demo.ts render       # cuts the relax-delay wait, adds narration -> out/tripwire-technical-demo.mp4 (+ .srt)
+ *   bun demo.ts render-cre   # Chainlink bounty cut (≤ 2 min, CRE narration) -> out/tripwire-cre-demo.mp4 (+ .srt)
  */
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -26,6 +27,17 @@ const NARRATION: Record<number, string> = {
 	6: 'Governance proposes to relax, and must wait out the delay.',
 	7: 'When the proposal matures, the watcher sends fresh evidence, and anyone can execute the relax. The market is open again.',
 	8: 'Every step is a real transaction on Monad testnet. This is the receipt of the report that tripped the guard, delivered through the Chainlink forwarder.',
+}
+
+/** Chainlink bounty cut (≤ 2 min): same recording, CRE-focused narration, ends before the receipt step. */
+const CRE_NARRATION: Record<number, string> = {
+	1: 'This is a Chainlink CRE workflow running through the CRE CLI simulator, writing real transactions to Monad testnet.',
+	2: "Each run reads the market, the Chainlink data feed and Perpl's perpetual through the EVM capability, and three exchanges through the HTTP capability with DON consensus. All references agree.",
+	3: "An attacker pushes the market's oracle thirty percent higher. The next run measures the deviation, and the DON-signed report goes through the forwarder to the guard. It trips to frozen.",
+	4: "The attacker's borrow reverts.",
+	5: 'The oracle is fixed. The workflow reports recovery, but the guard stays frozen: CRE reports can only tighten.',
+	6: 'Governance proposes a relax.',
+	7: 'When it matures, the workflow sends fresh evidence and the relax executes. One workflow orchestrates the reads, the consensus, the risk logic and the onchain write.',
 }
 
 const envFile = (path: string) =>
@@ -208,54 +220,61 @@ async function record() {
 	console.log('recorded', JSON.stringify({ marks, cut }))
 }
 
-async function render() {
-	const { marks, cut } = JSON.parse(readFileSync(join(OUT, 'demo-marks.json'), 'utf8')) as {
+type RenderOptions = { narration: Record<number, string>; name: string; speed: number; endBeforeStep?: number }
+
+async function render({ narration, name, speed, endBeforeStep }: RenderOptions) {
+	const rec = JSON.parse(readFileSync(join(OUT, 'demo-marks.json'), 'utf8')) as {
 		marks: { step: number; t: number }[]
 		cut: { start: number; end: number }
+		frames: { file: string; t: number }[]
+		duration: number
 	}
+	const { cut, frames } = rec
+	const endT = endBeforeStep ? (rec.marks.find((m) => m.step === endBeforeStep)?.t ?? rec.duration) : rec.duration
+	const marks = rec.marks.filter((m) => m.t < endT)
 	const probe = (f: string) =>
 		Number(Bun.spawnSync(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f], { stdout: 'pipe' }).stdout.toString().trim())
-	const { frames, duration } = JSON.parse(readFileSync(join(OUT, 'demo-marks.json'), 'utf8')) as { frames: { file: string; t: number }[]; duration: number }
 	const removed = cut.end - cut.start
-	const mapT = (t: number) => (t >= cut.end ? t - removed : Math.min(t, cut.start))
-	// Concat list with each frame held until the next one; frames inside the cut are dropped.
-	const kept = frames.filter((f) => f.t < cut.start || f.t >= cut.end)
+	/** Recording time -> output time: the relax-delay wait is cut, then the whole timeline is sped up by `speed`. */
+	const mapT = (t: number) => (t >= cut.end ? t - removed : Math.min(t, cut.start)) / speed
+	// Concat list with each frame held until the next one; frames inside the cut (or after the end) are dropped.
+	const kept = frames.filter((f) => (f.t < cut.start || f.t >= cut.end) && f.t < endT)
 	const posix = (p: string) => p.replaceAll('\\', '/')
 	const list = kept.map((f, i) => {
-		const next = i + 1 < kept.length ? mapT(kept[i + 1].t) : mapT(duration)
+		const next = i + 1 < kept.length ? mapT(kept[i + 1].t) : mapT(endT)
 		return `file '${posix(f.file)}'\nduration ${Math.max(0.001, next - mapT(f.t)).toFixed(3)}`
 	})
 	// The concat demuxer needs the last file repeated for its duration to apply.
-	writeFileSync(join(OUT, 'demo-frames.txt'), `${list.join('\n')}\nfile '${posix(kept[kept.length - 1].file)}'\n`)
-	const raw = join(OUT, 'demo-raw.mp4')
+	writeFileSync(join(OUT, `${name}-frames.txt`), `${list.join('\n')}\nfile '${posix(kept[kept.length - 1].file)}'\n`)
+	const raw = join(OUT, `${name}-raw.mp4`)
 	const enc = Bun.spawnSync(
-		['ffmpeg', '-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', join(OUT, 'demo-frames.txt'), '-vf', 'fps=30,format=yuv420p', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', raw],
+		['ffmpeg', '-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', join(OUT, `${name}-frames.txt`), '-vf', 'fps=30,format=yuv420p', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', raw],
 		{ stdout: 'pipe', stderr: 'pipe' },
 	)
 	if (enc.exitCode !== 0) throw new Error(`ffmpeg frames: ${enc.stderr.toString()}`)
 
 	// Narration (Windows SAPI), one wav per step.
-	writeFileSync(join(OUT, 'demo-narration.json'), JSON.stringify(Object.entries(NARRATION).map(([step, say]) => ({ step, say }))))
+	writeFileSync(join(OUT, `${name}-narration.json`), JSON.stringify(Object.entries(narration).map(([step, say]) => ({ step, say }))))
 	const ps = `
 Add-Type -AssemblyName System.Speech
-$segs = Get-Content -Raw '${join(OUT, 'demo-narration.json')}' | ConvertFrom-Json
+$segs = Get-Content -Raw '${join(OUT, `${name}-narration.json`)}' | ConvertFrom-Json
 $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
 $s.SelectVoice('${process.env.VOICE ?? 'Microsoft Zira Desktop'}')
 $s.Rate = 1
 $fmt = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(48000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
-foreach ($seg in $segs) { $s.SetOutputToWaveFile('${OUT}\\demo-n' + $seg.step + '.wav', $fmt); $s.Speak($seg.say) }
+foreach ($seg in $segs) { $s.SetOutputToWaveFile('${join(OUT, `${name}-n`)}' + $seg.step + '.wav', $fmt); $s.Speak($seg.say) }
 $s.SetOutputToNull()
 `
 	const tts = Bun.spawnSync(['powershell', '-NoProfile', '-Command', ps], { stdout: 'pipe', stderr: 'pipe' })
 	if (tts.exitCode !== 0) throw new Error(`TTS failed: ${tts.stderr.toString()}`)
 
-	// Place each line at its (cut-adjusted) step time, never overlapping the previous line.
+	// Place each line at its (mapped) step time, never overlapping the previous line.
 	const placed: { step: number; at: number; dur: number; say: string }[] = []
 	let prevEnd = 0
 	for (const m of marks) {
-		const say = NARRATION[m.step]
+		const say = narration[m.step]
 		if (!say) continue
-		const dur = probe(join(OUT, `demo-n${m.step}.wav`))
+		const dur = probe(join(OUT, `${name}-n${m.step}.wav`))
 		const at = Math.max(mapT(m.t) + 0.4, prevEnd + 0.3)
 		placed.push({ step: m.step, at, dur, say })
 		prevEnd = at + dur
@@ -263,11 +282,11 @@ $s.SetOutputToNull()
 	const videoDur = probe(raw)
 	const finalDur = Math.max(videoDur, prevEnd + 1.0)
 
-	const inputs = ['-i', raw, ...placed.flatMap((p) => ['-i', join(OUT, `demo-n${p.step}.wav`)])]
+	const inputs = ['-i', raw, ...placed.flatMap((p) => ['-i', join(OUT, `${name}-n${p.step}.wav`)])]
 	const vcut = `[0:v]tpad=stop_mode=clone:stop_duration=${Math.max(0, finalDur - videoDur + 0.1).toFixed(2)},format=yuv420p,fade=t=in:st=0:d=0.4[v]`
 	const audio = placed.map((p, i) => `[${i + 1}:a]adelay=${Math.round(p.at * 1000)}|${Math.round(p.at * 1000)}[a${i}]`).join(';')
 	const mix = `${placed.map((_, i) => `[a${i}]`).join('')}amix=inputs=${placed.length}:normalize=0,apad,atrim=0:${finalDur.toFixed(3)},loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000[a]`
-	const out = join(OUT, 'tripwire-technical-demo.mp4')
+	const out = join(OUT, `${name}.mp4`)
 	const r = Bun.spawnSync(
 		['ffmpeg', '-y', '-loglevel', 'error', ...inputs, '-filter_complex', `${vcut};${audio};${mix}`, '-map', '[v]', '-map', '[a]',
 			'-t', finalDur.toFixed(3), '-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-r', '30', '-c:a', 'aac', '-b:a', '160k', '-ac', '2', '-movflags', '+faststart', out],
@@ -279,10 +298,12 @@ $s.SetOutputToNull()
 		const p = (n: number, w = 2) => String(n).padStart(w, '0')
 		return `${p(Math.floor(ms / 3_600_000))}:${p(Math.floor(ms / 60_000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`
 	}
-	writeFileSync(join(OUT, 'tripwire-technical-demo.srt'), placed.map((p, i) => `${i + 1}\n${ts(p.at)} --> ${ts(p.at + p.dur)}\n${p.say}\n`).join('\n'))
-	console.log(`rendered ${out} (${finalDur.toFixed(1)} s; cut ${removed.toFixed(1)} s of waiting)`)
+	writeFileSync(join(OUT, `${name}.srt`), placed.map((p, i) => `${i + 1}\n${ts(p.at)} --> ${ts(p.at + p.dur)}\n${p.say}\n`).join('\n'))
+	console.log(`rendered ${out} (${finalDur.toFixed(1)} s; cut ${removed.toFixed(1)} s of waiting; speed ${speed}x)`)
 }
 
-if (process.argv[2] === 'record') await record()
-else if (process.argv[2] === 'render') await render()
-else console.log('usage: bun demo.ts record|render')
+const mode = process.argv[2]
+if (mode === 'record') await record()
+else if (mode === 'render') await render({ narration: NARRATION, name: 'tripwire-technical-demo', speed: 1 })
+else if (mode === 'render-cre') await render({ narration: CRE_NARRATION, name: 'tripwire-cre-demo', speed: 1.07, endBeforeStep: 8 })
+else console.log('usage: bun demo.ts record|render|render-cre')
