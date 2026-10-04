@@ -1,8 +1,10 @@
+<p align="center"><img src="docs/assets/logo.png" alt="Tripwire" width="160"></p>
+
 # Tripwire
 
 **A circuit breaker for DeFi markets on Monad, run by Chainlink CRE. It tightens a market within one workflow run of trouble starting, and it never loosens on its own.**
 
-**Live monitor:** https://allertrack.github.io/tripwire/ (Monad testnet) · **Demo video:** see [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)
+**Live monitor:** https://allertrack.github.io/tripwire/ (Monad testnet) · **Overview video:** https://youtu.be/JGk6BlBlSTU
 
 When a lending market's oracle is manipulated or its liquidity starts to run, the usual defence is a person with a multisig noticing in time. Tripwire replaces the noticing. A Chainlink Runtime Environment (CRE) workflow watches the market every 30 seconds:
 

@@ -1,97 +1,154 @@
 # Monad Metropolis submission: Tripwire
 
-> Copy-paste source for the submission form at hackathon.monad.xyz. Track and bounty answers are below.
+Field-by-field answers for the entry form at hackathon.monad.xyz.
 
-**Project name:** Tripwire
-
-**Tagline:** A circuit breaker for DeFi markets on Monad, run by Chainlink CRE. It tightens in seconds and never loosens on its own.
-
-**Track:** 01 · Onchain Finance & Trading
-
-**Sponsor bounties:**
-- Chainlink: Best workflow with CRE
-- Perpl: Best Analytics/Risk Tool
-
-**Links:**
-- Code: https://github.com/allertrack/tripwire
-- Demo video: *(YouTube link)*
-- Live monitor: https://allertrack.github.io/tripwire/
-- Deployment: Monad testnet. Addresses are in `contracts/deployments/monad-testnet.json` and the README.
+| Field | Value |
+|---|---|
+| Primary track | **Onchain Finance & Trading** |
+| Project logo | `tools/video/out/tripwire-logo.png` (1024×1024 PNG) |
+| Project name | Tripwire |
+| One-line description | A Chainlink CRE circuit breaker for Monad lending markets: tightens in seconds, never loosens on its own. |
+| GitHub repository | https://github.com/allertrack/tripwire |
+| Live product | https://allertrack.github.io/tripwire/ (reads Monad testnet directly) |
+| Technical demo video | YouTube upload of `tools/video/out/tripwire-technical-demo.mp4` (2:17, real-time screen recording on Monad testnet) |
+| Pitch video | YouTube upload of `tools/video/out/tripwire-pitch.mp4` (1:32) |
+| Sponsor bounties | Chainlink: Best workflow with CRE · Perpl: Best Analytics/Risk Tool |
 
 ---
 
-## Short description (≈ 80 words)
+## Description
 
-When a lending market's oracle is manipulated, the usual defence is a person with a multisig noticing in time. Tripwire replaces the noticing. A Chainlink CRE workflow checks the market every 30 seconds:
-- the market's oracle against three independent references: a Chainlink Data Feed on Monad, a DON-consensus exchange median, and Perpl's Data Streams oracle;
-- utilization, outflow velocity and stress on Perpl's order book.
+**The problem.** When a lending market's oracle is manipulated, or its liquidity starts to run, a bad price can become bad debt within a block. Fast chains make that faster. Today's defence is either:
+- a human with a multisig who has to notice, gather signers and pause, minutes or hours later; or
+- a blunt pause-everything switch that also blocks repayments and safe exits.
 
-On trouble, it sends a DON-signed report to an on-chain guard. The guard pauses exactly the risky actions. Automation can only tighten; relaxing needs governance and the watcher to agree.
+**What we built.** Tripwire is an automated, trust-minimised circuit breaker for lending markets on Monad, run by a Chainlink Runtime Environment (CRE) workflow.
 
-## The problem
+1. **The watcher (a CRE workflow in TypeScript, compiled to WASM).** Every 30 seconds it reads, at the finalized head:
+   - the market's own risk snapshot (oracle price and age, supply, borrows, trailing outflow);
+   - the Chainlink ETH/USD Data Feed on Monad;
+   - Perpl's on-chain perpetual on Monad, both its oracle price (Chainlink Data Streams) and its order-book mark price.
 
-Fast chains make fast exploits. On Monad a manipulated price can become bad debt within a block, and existing defences are either:
-- **manual:** multisig pauses that take minutes to hours to coordinate; or
-- **blunt:** pause-everything switches that also block repayments and safe exits.
+   It also fetches Coinbase, Kraken and Bitstamp in node mode and takes a DON-consensus median.
 
-What DeFi protocols lack is an automated, *trust-minimised* risk layer. It has to react in seconds. It also has to be impossible to abuse, which means a buggy or compromised watcher must not be able to unfreeze a market or drain it.
+   A deterministic risk model, run on bigints with no floats, then derives a level from these signals:
+   - deviation of the market oracle from the closest independent reference;
+   - spread between the references;
+   - oracle staleness;
+   - utilization;
+   - outflow velocity;
+   - perp dislocation.
 
-## What we built
+   The workflow writes a DON-signed report only when it matters: a stricter level, a changed view, fresh evidence for a matured relax proposal, or a heartbeat. Every report commits to an evidence hash of all inputs.
+2. **The guard (`TripwireGuard`, Solidity on Monad).** It receives reports through the Chainlink Forwarder. It has four levels (Normal, Caution, Restricted, Frozen), each with a per-level allow-list of actions: borrow, withdraw, liquidate, mint, bridge-out and swap. Repay, supply and add-collateral are never gated, and positions below health factor 0.95 stay liquidatable. Markets ask `isAllowed(action)`, which is one storage read at 3.7k gas.
 
-1. **`TripwireGuard` (Solidity, Monad).** A CRE report receiver that exposes `isAllowed(action)`, one storage read at 3.7k gas.
-   - Four levels (Normal → Caution → Restricted → Frozen), each with a per-level allow-list (borrow, withdraw, liquidate, mint, bridge-out, swap). Repay, supply and add-collateral are never gated.
-   - Five safety properties, each a Foundry invariant fuzzed over 65,536 calls per CI run:
-     1. Tighten-only automation.
-     2. Two-key relax: governance proposal, delay, no new trip, and a fresh watcher observation that agrees.
-     3. Fail-safe liveness: if the watcher goes silent for a heartbeat, the guard is at least Caution, with no transaction needed.
-     4. Monotone permissions.
-     5. Reports bound to (chain, guard address), strictly ordered and fresh.
-   - **Drop-in for Aave V3.** The guard implements `PriceOracleSentinel`. We proved it on a fork of the live Aave V3 market on Sepolia: Aave's own `borrow` and `liquidationCall` obey the guard after one governance call.
-2. **The CRE workflow (TypeScript → WASM).** Every 30 s it:
-   - reads the market's `riskSnapshot()`, the Chainlink ETH/USD Data Feed on Monad, and Perpl's `getPerpetualInfoV2` (oracle and mark);
-   - fetches Coinbase, Kraken and Bitstamp in node mode and takes a **DON-consensus median** of the per-node medians;
-   - runs a deterministic risk model covering deviation, reference spread, oracle staleness, utilization, outflow velocity and perp dislocation;
-   - writes only when needed: on a trip, on a change of view, when a relax proposal matures (evidence), or on a heartbeat.
+**What makes it trustworthy.** Five safety properties are enforced, each a Foundry invariant fuzzed over 65,536 random calls per CI run:
+1. **Tighten-only automation.** Reports and guardians can raise the level but never lower it, so a compromised watcher can halt borrowing but cannot unfreeze anything.
+2. **Two-key relax.** Lowering the level needs a governance proposal, a delay, no new trip since, and a fresh watcher observation that agrees. Execution is then permissionless.
+3. **Fail-safe liveness.** If the watcher goes silent for a heartbeat, the effective level becomes at least Caution, with no transaction needed.
+4. **Monotone permissions.** A stricter level never allows more.
+5. **Bound, ordered reports.** Each report is bound to (chain, guard address), which closes replay across guards and chains, and must be strictly ordered and fresh.
 
-   Every report commits to an evidence hash of all inputs.
-3. **A demo lending market** wired to the guard with one modifier, plus **a live monitor** (a static page reading Monad directly).
+**What makes it useful today.**
+- **Drop-in for Aave V3 and its forks.** The guard implements Aave's `PriceOracleSentinel` (`isBorrowAllowed` / `isLiquidationAllowed`), so integrating is a single governance call: `setPriceOracleSentinel(guard)`. We proved this against Aave's own code on a fork of the live Aave V3 Sepolia market. Aave's `borrow` reverts after a workflow trip and when the watcher goes silent, and a marginal liquidation is paused at Restricted.
+- **One modifier for any other market** (`TripwireProtected.whenAllowed`). Morpho Vault V2 sentinels and Euler vault hooks are the next adapters.
+- **Live on Monad testnet with verified contracts.** The demo shows a real run:
+  1. the market oracle is pushed 30% above reality;
+  2. the CRE report trips the guard to Frozen;
+  3. the attacker's borrow reverts;
+  4. the oracle is fixed, but the guard stays Frozen;
+  5. governance proposes a relax and the watcher sends fresh evidence;
+  6. anyone executes the relax.
 
-## How we use Chainlink CRE (Chainlink bounty)
+**Engineering.**
+- 131 tests: 72 contract unit/fuzz/invariant tests, 4 tests against the live Aave V3 market, and 55 workflow tests on the CRE SDK test runtime.
+- A golden report checked byte for byte in both TypeScript and Solidity.
+- An end-to-end rehearsal with the real CRE simulator on a fork of Monad testnet.
+- CI on every push.
 
-- **Triggers:** a cron trigger, every 30 s.
-- **EVM read capability on Monad testnet:** the market snapshot, the guard status, the **Chainlink Data Feed** (ETH/USD), and Perpl's perpetual, whose oracle is **Chainlink Data Streams** verified on-chain. All reads are at the finalized head, so every DON node sees the same state.
-- **HTTP capability + consensus:** `runInNodeMode` fetches three exchanges; each node returns the median of the exchanges that answered (at least two); the DON aggregates with `consensusMedianAggregation`.
-- **Reports + EVM write:** DON-signed reports are delivered through the Forwarder to `TripwireGuard.onReport`.
+---
+
+## Go-to-market and user acquisition
+
+**First users: risk teams that already own a pause button but have no automation behind it.**
+
+1. **Aave DAO and its risk service provider, LlamaRisk.**
+   - The proposed *Aave Risk Framework* (governance.aave.com, June 2026) has a layer for "automated freeze guardians that act between adverse events and human response".
+   - A companion proposal moves Aave's risk oracles onto Chainlink CRE and plans to bring "the automated freeze guardian" onto the same infrastructure.
+   - Aave V3 on Monad (≈ $324M deposits, DefiLlama) has no PriceOracleSentinel set today, and Tripwire is a drop-in sentinel already proven against Aave's code.
+   - *How we reach them:* a governance forum post with the testnet evidence, direct conversation with LlamaRisk, and an open-source guard offered as a testnet pilot.
+2. **Vault curators on Monad.** These are teams such as K3 Capital, Hyperithm, Steakhouse, Gamma Research and Clearstar, who together curate hundreds of millions on Morpho and Euler.
+   - Morpho Vault V2 has a "sentinel" role that can only de-risk (decrease caps, deallocate), and Euler vaults have hook targets. Both are natural homes for a Tripwire guard.
+   - *How we reach them:* their published business contacts and the Morpho and Euler forums, offering a per-vault guard pilot.
+3. **Native Monad lending markets:** Curvance, Neverland (Aave V3 based, so the same sentinel path), Reservoir, TownSquare and Folks Finance. Each can integrate with one modifier or the sentinel.
+
+**Acquisition channels.**
+- The open-source code and the public live monitor serve as proof.
+- Monad ecosystem introductions (DeltaV, Monad Foundation).
+- Chainlink's ecosystem, as a CRE showcase.
+- Incident replays: published analyses showing how Tripwire would have reacted to past oracle-manipulation incidents.
+
+**Business model.**
+- The core is open source.
+- Revenue comes from operating the watcher workflow for each market, as a monthly fee per protected market with a monitoring SLA, and from custom risk models.
+- The path is a paid pilot on testnet first, then an external audit and mainnet.
+
+**Next 90 days.**
+- Two pilots.
+- Morpho sentinel and Euler hook adapters.
+- CRE deploy access with a pinned workflow owner on the production Forwarder.
+- Audit.
+
+---
+
+## Judge access instructions (optional field)
+
+No login needed.
+
+1. **Live monitor:** https://allertrack.github.io/tripwire/
+   - It reads Monad testnet directly and shows the guard level, what the market allows, the watcher heartbeat, all price references (Chainlink Data Feed, Perpl oracle and mark), and the guard's on-chain activity feed.
+2. **Contracts:** all verified on MonadVision. The addresses are in the README ("Deployments") and in `contracts/deployments/monad-testnet.json`.
+3. **On-chain run:** the README links every transaction of the attack → trip → blocked borrow → relax sequence.
+4. **Reproduce locally** (Foundry, Bun, CRE CLI with `cre login`):
+   - `make install`
+   - `make test`
+   - `make e2e`, which runs the full scenario with the real CRE simulator against an anvil fork of Monad testnet; no funds needed.
+5. **Note.** The watcher currently runs through `cre workflow simulate --broadcast`, because CRE deploy access is pending. If the monitor ever shows **CAUTION · Watcher silent**, that is the fail-safe described above working as designed.
+
+---
+
+## Bounty answers
+
+### Chainlink: Best workflow with CRE
+
+- **Trigger:** cron, every 30 s.
+- **EVM read capability on Monad testnet**, at the finalized head:
+  - the market snapshot;
+  - the guard status;
+  - the **Chainlink ETH/USD Data Feed**;
+  - Perpl's perpetual, whose oracle is **Chainlink Data Streams**.
+- **HTTP capability + consensus:** `runInNodeMode` fetches three exchanges. Each node returns the median of those that answered (at least two), and the DON aggregates with `consensusMedianAggregation`.
+- **Reports + EVM write:** DON-signed reports go through the Forwarder to `TripwireGuard.onReport`.
   - The receiver authenticates the Forwarder and the workflow identity.
-  - Every payload carries `(chainSelector, guard address)`, because Forwarder signatures do not cover the receiver. This closes replay across guards and chains.
-  - The workflow checks the receiver's execution status and fails loudly if the receiver reverts.
-- **Determinism and limits:**
-  - pure risk model on bigints with no floats, and decimal strings parsed exactly;
-  - cron scheduled time as `observedAt`;
-  - designed inside CRE quotas: 2 + 2×markets EVM reads (up to 6 markets in one workflow), 3 HTTP calls, and one write per market only when needed.
-- **Tested like production code:**
-  - 55 bun tests use the CRE SDK test runtime with EVM and HTTP capability mocks;
-  - a golden report is checked byte for byte in both TypeScript and Solidity;
-  - the workflow compiles to WASM in CI;
-  - the full attack → trip → relax flow runs end to end with `cre workflow simulate --broadcast` (`scripts/local-e2e.sh`).
+  - Every payload carries `(chainSelector, guard)`, because Forwarder signatures do not cover the receiver.
+  - The workflow fails loudly if the receiver reverts.
+- **Determinism and quotas:**
+  - bigint-only model;
+  - the cron's scheduled time as `observedAt`;
+  - 2 + 2×markets EVM reads, so up to 6 markets per workflow;
+  - 3 HTTP calls;
+  - writes only when needed;
+  - a 150k gas limit, against 98.8k measured, because Monad charges the gas limit.
+- **Tested:**
+  - 55 bun tests on the CRE SDK test runtime, with EVM and HTTP mocks;
+  - a golden report shared with Solidity;
+  - WASM compile in CI;
+  - end-to-end `cre workflow simulate --broadcast` on Monad testnet (the demo video) and on a local fork (`make e2e`).
 
-## How we use Perpl (Perpl bounty: Best Analytics/Risk Tool)
+### Perpl: Best Analytics/Risk Tool
 
-Tripwire turns Perpl's on-chain state into a risk signal for *other* protocols on Monad:
-- **A third independent price reference.** Perpl's perpetual oracle price (Chainlink Data Streams, verified by the exchange) is read straight from the exchange contract with `getPerpetualInfoV2`. A lending market's oracle is now cross-checked against an independent on-chain venue on Monad itself.
-- **A market-stress signal.** When Perpl's order book (mark price) dislocates from its oracle, the `PERP_DISLOCATION` reason moves dependent markets to Caution or Restricted, on a configurable ladder.
-- **Safe by construction.** Stale Perpl data and markets with `ignOracle` are excluded automatically. The live monitor shows Perpl's oracle and mark next to the other references.
-
-## What is new during the hackathon
-
-Everything in this repository: contracts, workflow, tests, monitor and docs. It was started on 4 October 2026, inside the build window.
-
-## Team
-
-Pablo, a solo builder based in Spain.
-
-## What's next
-
-- CRE deploy access, then the production `KeystoneForwarder` with a pinned workflow owner.
-- Pilot integrations with lending markets on Monad, using the Aave V3 sentinel path or the modifier.
-- An external audit.
+Tripwire turns Perpl's on-chain state into a risk signal for other Monad protocols. It reads `getPerpetualInfoV2` on Perpl's exchange (ETH perp, id 32) through CRE.
+- **Third price reference.** Perpl's oracle price (Chainlink Data Streams, verified by the exchange) joins the Chainlink Data Feed and the exchange median.
+- **Stress signal.** When the order book's mark price dislocates from the oracle, the `PERP_DISLOCATION` reason moves dependent markets to Caution or Restricted, on a configurable ladder.
+- **Hygiene.** Stale data and `ignOracle` markets are excluded automatically.
+- **Visibility.** The live monitor shows Perpl's oracle and mark next to the other references, and every report packs the dislocation in its metrics.

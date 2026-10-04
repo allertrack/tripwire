@@ -5,7 +5,7 @@
  *   bun render.ts            # needs out/run.json from capture.ts
  *   REPO_URL=https://github.com/... bun render.ts
  *
- * Output: out/tripwire-demo.mp4, out/tripwire-demo.srt
+ * Output: out/tripwire-demo.mp4 + .srt (VIDEO=overview, default) or out/tripwire-pitch.mp4 + .srt (VIDEO=pitch)
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -19,7 +19,21 @@ const VOICE = process.env.VOICE ?? 'Microsoft Zira Desktop'
 const run = JSON.parse(readFileSync(join(OUT, 'run.json'), 'utf8'))
 mkdirSync(join(OUT, 'seg'), { recursive: true })
 
-export const SEGMENTS: { slide: string; say: string }[] = [
+const VIDEO = (process.env.VIDEO ?? 'overview') as 'overview' | 'pitch'
+
+/** Pitch video (≤ 2 min): team, problem, solution, proof, why now, next. */
+const PITCH: { slide: string; say: string }[] = [
+	{ slide: 'title', say: "Tripwire is an automated circuit breaker for lending markets on Monad, built on Chainlink's Runtime Environment." },
+	{ slide: 'team', say: "It is built by Pablo, a solo developer based in Spain. Before Tripwire, he built Countersign, an extra verifier for Chainlink's cross-chain protocol, also running on CRE." },
+	{ slide: 'problem', say: "The problem: when a lending market's price oracle is manipulated, bad debt can be created within a block. Today the response is a human with a multisig, minutes or hours later." },
+	{ slide: 'how', say: 'Tripwire watches each market every thirty seconds, against three independent price references and live stress signals. When something is wrong, a DON-signed report pauses exactly the risky actions. Automation can only tighten; relaxing needs governance and the watcher to agree.' },
+	{ slide: 'proof', say: "It is live on Monad testnet with verified contracts, and it plugs into Aave V3 with one governance call. We proved that against Aave's own code." },
+	{ slide: 'whynow', say: "Why now: Aave's proposed risk framework calls for automated freeze guardians, and its new oracle proposal plans one on Chainlink CRE. Aave's market on Monad holds over three hundred million dollars and has no oracle sentinel today. Curators on Morpho and Euler have the same need." },
+	{ slide: 'next', say: 'Next: paid pilots with lending markets and curators on Monad, adapters for Morpho and Euler, then an audit and mainnet.' },
+	{ slide: 'close', say: 'Tripwire. Tighten in seconds, never loosen alone.' },
+]
+
+export const SEGMENTS: { slide: string; say: string }[] = VIDEO === 'pitch' ? PITCH : [
 	{ slide: 'title', say: 'This is Tripwire: a circuit breaker for lending markets on Monad, run by a Chainlink Runtime Environment workflow. It tightens a market within seconds of trouble, and it never loosens on its own.' },
 	{ slide: 'problem', say: "When a lending market's oracle is manipulated, a bad price can turn into bad debt in a single block. Today the defence is a person with a multisig, who has to notice, gather signers, and pause, often blocking repayments too." },
 	{ slide: 'how', say: "Tripwire replaces the noticing. Every thirty seconds, a CRE workflow checks the market's own oracle against three independent references: a Chainlink data feed on Monad, a median of three exchanges agreed by the oracle network, and Perpl's on-chain perpetual, priced by Chainlink Data Streams. It also watches utilization, outflows, and stress on Perpl's order book. A deterministic risk model picks the level, and a DON-signed report enforces it on chain." },
@@ -188,10 +202,10 @@ const cat = Bun.spawnSync(
 		'ffmpeg', '-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', join(OUT, 'seg', 'list.txt'),
 		// Video untouched; narration normalised to streaming loudness (-16 LUFS).
 		'-c:v', 'copy', '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-c:a', 'aac', '-b:a', '160k', '-ar', '48000',
-		'-movflags', '+faststart', join(OUT, 'tripwire-demo.mp4'),
+		'-movflags', '+faststart', join(OUT, VIDEO === 'pitch' ? 'tripwire-pitch.mp4' : 'tripwire-demo.mp4'),
 	],
 	{ stdout: 'pipe', stderr: 'pipe' },
 )
 if (cat.exitCode !== 0) throw new Error(`ffmpeg concat: ${cat.stderr.toString()}`)
-writeFileSync(join(OUT, 'tripwire-demo.srt'), srt.join('\n'))
-console.log(`rendered ${join(OUT, 'tripwire-demo.mp4')} (${clock.toFixed(1)} s)`)
+writeFileSync(join(OUT, VIDEO === 'pitch' ? 'tripwire-pitch.srt' : 'tripwire-demo.srt'), srt.join('\n'))
+console.log(`rendered ${join(OUT, VIDEO === 'pitch' ? 'tripwire-pitch.mp4' : 'tripwire-demo.mp4')} (${clock.toFixed(1)} s)`)

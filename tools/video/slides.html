@@ -157,6 +157,41 @@
   <div class="foot"><span>Built for Monad</span><span>Powered by Chainlink CRE</span></div>
 </section>
 
+<section id="team">
+  <div class="kicker">Team</div>
+  <h2>Pablo · solo builder, Spain</h2>
+  <div class="grid g2">
+    <div class="card"><h3>Before Tripwire: Countersign</h3><p>An extra verifier for Chainlink CCIP 2.0, running as a CRE workflow: checks the source-chain event, supply invariants and rate limits before tokens are minted cross-chain.</p><p style="margin-top:16px;color:var(--accent)">github.com/allertrack/countersign · 99 tests · live on Ethereum Sepolia + Arbitrum Sepolia</p></div>
+    <div class="card"><h3>Focus</h3><p>Automated, trust-minimised safety layers for DeFi, built on Chainlink CRE. Open source, tested like production code.</p></div>
+  </div>
+</section>
+
+<section id="proof" data-shot="frozen.png">
+  <div class="caption">Live on Monad testnet <span>· verified contracts · drop-in for Aave V3, proven against Aave's code</span></div>
+  <div class="shot"></div>
+</section>
+
+<section id="whynow">
+  <div class="kicker">Why now</div>
+  <h2>The market is asking for exactly this.</h2>
+  <div class="grid g3">
+    <div class="card"><div class="big">Aave</div><p>Proposed risk framework (LlamaRisk, Jun 2026) calls for <b style="color:var(--ink)">automated freeze guardians</b>; its CRE oracle proposal plans one on Chainlink CRE.</p></div>
+    <div class="card"><div class="big">$324M</div><p>Aave V3 on Monad, with <b style="color:var(--ink)">no PriceOracleSentinel</b> set today. Tripwire plugs into that slot.</p></div>
+    <div class="card"><div class="big">Curators</div><p>Morpho Vault V2 sentinels and Euler hooks let vault curators on Monad wire in the same guard.</p></div>
+  </div>
+  <p class="lead" style="font-size:24px;margin-top:28px">Sources: governance.aave.com (ARFC Aave Risk Framework; ARFC PT Risk Oracle on CRE) · DefiLlama · Aave PoolAddressesProvider on Monad</p>
+</section>
+
+<section id="next">
+  <div class="kicker">Next</div>
+  <h2>From testnet to protected markets.</h2>
+  <div class="grid g3">
+    <div class="card"><h3>Pilots</h3><p>Lending markets and curators on Monad: a guard per market, paid pilot on testnet first.</p></div>
+    <div class="card"><h3>Adapters</h3><p>Morpho Vault V2 sentinel and Euler hook targets, next to the Aave sentinel path.</p></div>
+    <div class="card"><h3>Production</h3><p>CRE deploy access, KeystoneForwarder with a pinned workflow owner, external audit, mainnet.</p></div>
+  </div>
+</section>
+
 <script>
   // ?s=<id> shows one slide; window.__data (set by the capture script) fills terminals, screenshots and links.
   const id = new URLSearchParams(location.search).get('s') || 'title'
