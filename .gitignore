@@ -26,3 +26,4 @@ dashboard/deployment.local.json
 tools/video/out/
 dashboard/deployment.capture.json
 outreach/
+.watcher/

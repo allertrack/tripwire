@@ -157,7 +157,7 @@ All contracts are verified on MonadVision (Sourcify). The source of truth is [`c
 6. [watcher sends fresh evidence](https://testnet.monadvision.com/tx/0x07eea161d6d1d90cbc397e4cf3f0bad2fbc94d190b6c9d283f1675c4d684c122)
 7. [anyone executes the relax](https://testnet.monadvision.com/tx/0x50a0169821c4c3e2e8fbb10dd103e040f09c78e98651ddb2f526f37cd3800fc4)
 
-The demo guard uses a 24 h heartbeat. Its watcher runs through `cre workflow simulate` from a laptop until CRE deploy access is granted; production would use 15 min. Because the demo market's oracle follows the Chainlink testnet feed (24 h heartbeat), that market's `maxOracleAgeSeconds` is 25 h.
+The demo guard uses a 72 h heartbeat. Until CRE deploy access is granted, its watcher runs through `cre workflow simulate --broadcast` every 6 hours from a scheduled task on a laptop (`scripts/watch-testnet.ps1`). Production would use a 15 min heartbeat. Because the demo market's oracle follows the Chainlink testnet feed (24 h heartbeat), that market's `maxOracleAgeSeconds` is 25 h.
 
 ## Status and honest limits
 
