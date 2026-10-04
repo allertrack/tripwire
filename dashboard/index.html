@@ -240,7 +240,7 @@ function renderStatus(s, now) {
   $('actions').innerHTML = ACTIONS.map(([bit, name]) => `<div class="action"><b>${name}</b><span class="pill ${allowed & bit ? 'on' : 'off'}">${allowed & bit ? 'ALLOWED' : 'PAUSED'}</span></div>`).join('')
   const age = Math.max(0, now - Number(s.lastObservedAt))
   const pct = Math.min(100, (age / s.heartbeat) * 100)
-  $('hbLbl').textContent = `${ago(age)} · heartbeat ${Math.round(s.heartbeat / 60)} min`
+  $('hbLbl').textContent = `${ago(age)} · heartbeat ${s.heartbeat >= 3600 ? `${+(s.heartbeat / 3600).toFixed(1)} h` : `${Math.round(s.heartbeat / 60)} min`}`
   $('hbBar').className = `bar ${pct > 85 ? 'bad' : pct > 60 ? 'warn' : ''}`
   $('hbBar').firstElementChild.style.width = pct + '%'
 }

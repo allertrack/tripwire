@@ -26,9 +26,9 @@
     {
       "name": "tWETH/tUSDC",
       "chainSelectorName": "monad-testnet",
-      "guard": "0x0000000000000000000000000000000000000001",
-      "market": "0x0000000000000000000000000000000000000002",
-      "gasLimit": "400000",
+      "guard": "0x7c12d527b8047F53F2e019F83b45b9aeBB981658",
+      "market": "0x15Ac97a7031bB3777AA1B85DFBFB11319BD244dC",
+      "gasLimit": "150000",
       "heartbeatRefreshSeconds": 300,
       "thresholds": {
         "deviationBps": [

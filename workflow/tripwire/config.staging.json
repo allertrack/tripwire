@@ -28,7 +28,7 @@
       "chainSelectorName": "monad-testnet",
       "guard": "0x0000000000000000000000000000000000000001",
       "market": "0x0000000000000000000000000000000000000002",
-      "gasLimit": "400000",
+      "gasLimit": "150000",
       "heartbeatRefreshSeconds": 300,
       "thresholds": {
         "deviationBps": [

@@ -96,7 +96,7 @@ See [docs/INTEGRATION.md](docs/INTEGRATION.md).
 | Heartbeat report (CRE → Forwarder → guard) | 43,580 |
 | Trip report | 51,219 |
 
-All hot state lives in one 256-bit storage slot. The workflow writes only when the level goes up, when its view changes, when a relax proposal matures, or once per heartbeat refresh (5 min). In steady state that is 12 writes an hour. Gas snapshots are checked in CI.
+On Monad the transaction pays for its gas *limit*, so the workflow sets a tight one: 150k, against 98,766 measured for a trip including the Forwarder (`cast run` on the testnet trip below). All hot state lives in one 256-bit storage slot. The workflow writes only when the level goes up, when its view changes, when a relax proposal matures, or once per heartbeat refresh (5 min). In steady state that is 12 writes an hour. Gas snapshots are checked in CI.
 
 ## Repository
 
@@ -132,13 +132,27 @@ The dashboard is a static page: `python -m http.server -d dashboard 5173`, then 
 
 ## Deployments (Monad testnet, chain 10143)
 
-See [`contracts/deployments/monad-testnet.json`](contracts/deployments/monad-testnet.json).
+All contracts are verified on MonadVision (Sourcify). The source of truth is [`contracts/deployments/monad-testnet.json`](contracts/deployments/monad-testnet.json).
 
-| | Address |
+| Contract | Address |
 |---|---|
+| TripwireGuard | [`0x7c12d527b8047F53F2e019F83b45b9aeBB981658`](https://testnet.monadvision.com/address/0x7c12d527b8047F53F2e019F83b45b9aeBB981658) |
+| GuardedLendingPool (demo market) | [`0x15Ac97a7031bB3777AA1B85DFBFB11319BD244dC`](https://testnet.monadvision.com/address/0x15Ac97a7031bB3777AA1B85DFBFB11319BD244dC) |
+| DemoOracle (the market's own oracle) | [`0xcEAcE91ed8fC52654F477329E0B14476940D3f94`](https://testnet.monadvision.com/address/0xcEAcE91ed8fC52654F477329E0B14476940D3f94) |
+| tWETH / tUSDC (demo tokens) | [`0xFb443e7b653BC40FcF004c34445bc7fC41244Da2`](https://testnet.monadvision.com/address/0xFb443e7b653BC40FcF004c34445bc7fC41244Da2) / [`0x0938305adC809B9089C7baA89Dc6d173AeEe3212`](https://testnet.monadvision.com/address/0x0938305adC809B9089C7baA89Dc6d173AeEe3212) |
 | CRE MockKeystoneForwarder (simulation) | `0xB9F79d863261869B234c481D1f9A7af84AeAd192` |
 | Chainlink ETH/USD Data Feed | `0x5c8c8482f064049248F86D9F4aFa4B1f2F5b6d31` |
 | Perpl exchange (ETH perp, id 32) | `0x1964C32f0bE608E7D29302AFF5E61268E72080cc` |
+
+**The attack and recovery on chain, recorded for the demo video:**
+1. [oracle pushed +30%](https://testnet.monadvision.com/tx/0x507575957db85e00c0d3c1a2d56bf997cf943d6b5e045b0c72337123879ae615)
+2. [CRE report trips the guard to Frozen](https://testnet.monadvision.com/tx/0x7e54db96d3e9fd1f5dbedd6cac62b7ada234c6f9a23085998d519f8da74af498)
+3. borrow reverts with `TripwirePaused(1)`
+4. [governance proposes relax](https://testnet.monadvision.com/tx/0xcfdb0e44b6ca086f590638198c12277ba34c9eaa6569002edaa81039e64e9f49)
+5. [watcher sends fresh evidence](https://testnet.monadvision.com/tx/0x2b344bfaf2c1ba3f1968f0716b3ce31f78c13cb4fa4cf2219366d194f3c6f5a0)
+6. [anyone executes the relax](https://testnet.monadvision.com/tx/0x45ce78f4369ee33d73e1afeedb1bd97c60def70cde4bff10111a61c250cb96de)
+
+The demo guard uses a 24 h heartbeat. Its watcher runs through `cre workflow simulate` from a laptop until CRE deploy access is granted; production would use 15 min.
 
 ## Status and honest limits
 
