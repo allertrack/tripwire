@@ -4,7 +4,7 @@
 
 **A circuit breaker for DeFi markets on Monad, run by Chainlink CRE. It tightens a market within one workflow run of trouble starting, and it never loosens on its own.**
 
-**Live monitor:** https://allertrack.github.io/tripwire/ (Monad testnet) · **Overview video:** https://youtu.be/JGk6BlBlSTU
+**Live monitor:** https://allertrack.github.io/tripwire/ (Monad testnet) · **Perpl risk monitor:** https://allertrack.github.io/tripwire/perpl.html (Monad mainnet) · **Overview video:** https://youtu.be/JGk6BlBlSTU
 
 When a lending market's oracle is manipulated or its liquidity starts to run, the usual defence is a person with a multisig noticing in time. Tripwire replaces the noticing. A Chainlink Runtime Environment (CRE) workflow watches the market every 30 seconds:
 
@@ -110,7 +110,7 @@ contracts/   Foundry. TripwireGuard, CREReceiver, TripwireProtected, demo market
   src/demo/GuardedLendingPool.sol    minimal lending market wired to the guard
   test/                              unit, fuzz, invariant, golden-report and Aave V3 fork tests
 workflow/    CRE project. tripwire/workflow.ts + src/{observe,policy,prices}.ts, 55 bun tests
-dashboard/   static live monitor (viem, no build step)
+dashboard/   static live monitors (viem, no build step): index.html (guard) · perpl.html (Perpl risk: markets, liquidation radar, wallets)
 scripts/     local-e2e.sh (anvil fork + CRE simulator), make-config.ts
 docs/        SECURITY, INTEGRATION, REPORT (payload + metrics layout), DEMO_SCRIPT, SUBMISSION
 ```

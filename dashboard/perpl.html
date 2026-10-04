@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perpl Risk Monitor</title>
+<meta name="description" content="Real-time risk monitor for Perpl on Monad: protocol-level market stress and liquidation radar, plus wallet-level positions, leverage and liquidation distance.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #14171f; --muted: #5d6474; --line: #e3e6ec; --soft: #eef0f4;
+    --ok: #12805c; --ok-bg: #e3f5ed; --warn: #a86400; --warn-bg: #fdf1dc; --high: #c2410c; --high-bg: #fde8dd;
+    --bad: #b4232f; --bad-bg: #fbe4e6; --accent: #375bd2; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1016; --panel: #151a23; --ink: #e8ebf1; --muted: #949cad; --line: #252c38; --soft: #1c222d;
+      --ok: #3ccf96; --ok-bg: #12302a; --warn: #f2b53b; --warn-bg: #3a2c10; --high: #fb8a4c; --high-bg: #3d2114;
+      --bad: #ff6b78; --bad-bg: #40171c; --accent: #7c9cff; --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1016; --panel: #151a23; --ink: #e8ebf1; --muted: #949cad; --line: #252c38; --soft: #1c222d;
+    --ok: #3ccf96; --ok-bg: #12302a; --warn: #f2b53b; --warn-bg: #3a2c10; --high: #fb8a4c; --high-bg: #3d2114;
+    --bad: #ff6b78; --bad-bg: #40171c; --accent: #7c9cff; --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 Inter, system-ui, sans-serif; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -.01em; }
+  .brand svg { width: 26px; height: 26px; color: var(--accent); }
+  .brand small { font-weight: 500; color: var(--muted); font-size: 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--soft); color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .chip a { color: inherit; }
+  .spacer { flex: 1; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+  .dot.off { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-bg); }
+  select, input, button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  button { cursor: pointer; } button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .note { color: var(--muted); font-size: 12.5px; margin: 0 0 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 14px; }
+  @media (max-width: 1000px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 560px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); min-width: 0; margin-bottom: 14px; }
+  .kpi .v { font-size: 22px; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .kpi .l { color: var(--muted); font-size: 12px; }
+  .card h2 { margin: 0 0 12px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; display: flex; gap: 8px; align-items: center; }
+  .card h2 span { text-transform: none; letter-spacing: 0; font-weight: 500; }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.click { cursor: pointer; } tr.click:hover td { background: var(--soft); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 6px; }
+  .t-ok { background: var(--ok-bg); color: var(--ok); } .t-warn { background: var(--warn-bg); color: var(--warn); }
+  .t-high { background: var(--high-bg); color: var(--high); } .t-bad { background: var(--bad-bg); color: var(--bad); }
+  .long { color: var(--ok); font-weight: 600; } .short { color: var(--bad); font-weight: 600; }
+  .pos { color: var(--ok); } .neg { color: var(--bad); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .row input { flex: 1; min-width: 260px; font-family: "JetBrains Mono", monospace; font-size: 13px; }
+  .acct { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 12px; }
+  @media (max-width: 800px) { .acct { grid-template-columns: repeat(2, 1fr); } }
+  .acct div { background: var(--soft); border-radius: 10px; padding: 10px 12px; }
+  .acct b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .acct span { color: var(--muted); font-size: 12px; }
+  .empty { color: var(--muted); padding: 10px 4px; }
+  .err { background: var(--bad-bg); color: var(--bad); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; display: none; }
+  .two { display: grid; grid-template-columns: 1fr; gap: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor" opacity=".12"/><path d="M5 20h6l3-9 4 14 3-9h6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Tripwire <small>· Perpl Risk Monitor</small>
+    </div>
+    <select id="net" aria-label="Network"><option value="mainnet">Monad mainnet</option><option value="testnet">Monad testnet</option></select>
+    <span class="chip mono" id="exChip">exchange —</span>
+    <div class="spacer"></div>
+    <a class="chip" href="./">Tripwire guard monitor →</a>
+    <span class="chip"><span class="dot" id="liveDot"></span><span id="blockLbl">connecting…</span></span>
+  </header>
+  <p class="note">Live, read-only view of Perpl's on-chain state (no API keys, no backend). Mark vs. oracle dislocation is the <b>PERP_DISLOCATION</b> signal Tripwire's Chainlink CRE workflow uses to protect lending markets on Monad; liquidation prices follow Perpl's documented formula.</p>
+  <div class="err" id="err"></div>
+
+  <section class="kpis">
+    <div class="card kpi"><div class="v" id="kCollat">—</div><div class="l">Collateral in exchange</div></div>
+    <div class="card kpi"><div class="v" id="kIns">—</div><div class="l">Insurance funds</div></div>
+    <div class="card kpi"><div class="v" id="kOI">—</div><div class="l">Open interest (notional, per side)</div></div>
+    <div class="card kpi"><div class="v" id="kAcc">—</div><div class="l">Accounts</div></div>
+    <div class="card kpi"><div class="v" id="kPos">—</div><div class="l">Open positions scanned</div></div>
+    <div class="card kpi"><div class="v" id="kRisk">—</div><div class="l">Notional within 10% of liquidation</div></div>
+  </section>
+
+  <section class="card">
+    <h2>Markets <span>· protocol-level stress, refreshed every few seconds</span></h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Market</th><th class="n">Mark</th><th class="n">Oracle (Data Streams)</th><th class="n">Dislocation</th><th>Tripwire signal</th><th class="n">Oracle age</th><th class="n">Open interest</th><th class="n">Funding / interval</th><th class="n">Insurance cover</th><th class="n">Positions</th><th class="n">Nearest liquidation</th></tr></thead>
+      <tbody id="markets"><tr><td colspan="11" class="empty">Loading markets…</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <section class="card">
+    <h2>Liquidation radar <span>· positions closest to their liquidation price, across all markets · click a row to inspect the wallet</span></h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Market</th><th>Side</th><th class="n">Size</th><th class="n">Entry</th><th class="n">Liq. price</th><th class="n">Distance</th><th class="n">Leverage</th><th class="n">Notional</th><th class="n">Account</th></tr></thead>
+      <tbody id="radar"><tr><td colspan="9" class="empty">Scanning positions…</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <section class="card" id="walletCard">
+    <h2>Wallet <span>· positions, leverage and liquidation distance for any Perpl account</span></h2>
+    <div class="row">
+      <input id="addr" placeholder="0x… wallet address (or click a row in the radar)" spellcheck="false">
+      <button class="primary" id="inspect" type="button">Inspect</button>
+    </div>
+    <div id="wallet"><div class="empty">Enter a wallet address to see its Perpl account.</div></div>
+  </section>
+</div>
+
+<script type="module">
+import { createPublicClient, http, parseAbi, isAddress } from 'https://cdn.jsdelivr.net/npm/viem@2.34.0/+esm'
+
+const NETS = {
+  mainnet: { id: 143, rpc: 'https://rpc.monad.xyz', exchange: '0x34B6552d57a35a1D042CcAe1951BD1C370112a6F', explorer: 'https://monadvision.com' },
+  testnet: { id: 10143, rpc: 'https://testnet-rpc.monad.xyz', exchange: '0x1964C32f0bE608E7D29302AFF5E61268E72080cc', explorer: 'https://testnet.monadvision.com' },
+}
+// Tripwire's default PERP_DISLOCATION ladder (bps): Caution / Restricted / Frozen.
+const LADDER = [150, 400, 1000]
+const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11'
+const POSITION = 'struct Position { uint256 accountId; uint256 nextNodeId; uint256 prevNodeId; uint8 positionType; uint256 depositCNS; uint256 pricePNS; uint256 lotLNS; uint256 entryBlock; int256 pnlCNS; int256 deltaPnlCNS; int256 premiumPnlCNS; uint256 priceResiduePNSQ16; }'
+const ACCOUNT = 'struct Account { uint256 accountId; uint256 balanceCNS; uint256 lockedBalanceCNS; uint8 frozen; address accountAddr; Banks positions; }'
+const abi = parseAbi([
+  'struct PerpetualInfo { string name; string symbol; uint256 priceDecimals; uint256 lotDecimals; bytes32 linkFeedId; uint256 priceTolPer100K; uint256 marginTol; uint256 marginTolDecimals; uint256 refPriceMaxAgeSec; uint256 positionBalanceCNS; uint256 insuranceBalanceCNS; uint256 markPNS; uint256 markTimestamp; uint256 lastPNS; uint256 lastTimestamp; uint256 oraclePNS; uint256 oracleTimestampSec; uint256 longOpenInterestLNS; uint256 shortOpenInterestLNS; uint256 fundingStartBlock; int16 fundingRatePct100k; uint256 absFundingClampPctPer100K; uint8 status; uint256 basePricePNS; uint256 maxBidPriceONS; uint256 minBidPriceONS; uint256 maxAskPriceONS; uint256 minAskPriceONS; uint256 numOrders; bool ignOracle; uint256 fundingSumScalingExp; }',
+  'struct Banks { uint256 bank1; uint256 bank2; uint256 bank3; uint256 bank4; }',
+  POSITION, ACCOUNT,
+  'function getExchangeInfo() view returns (uint256 balanceCNS, uint256 protocolBalanceCNS, uint256 recycleBalanceCNS, uint256 collateralDecimals, address collateralToken, address verifierProxy)',
+  'function numberOfAccounts() view returns (uint256)',
+  'function getPerpetualExistsBitmap() view returns (uint256[4])',
+  'function getPerpetualInfoV2(uint256 perpId) view returns (PerpetualInfo)',
+  'function getMarginFractions(uint256 perpId, uint256 lotLNS) view returns (uint256 perpInitMarginFracHdths, uint256 perpMaintMarginFracHdths, uint256 dynamicInitMarginFracHdths, uint256 oiMaxLNS, uint256 unityDescentThreshHdths, uint256 overColDescentThreshHdths)',
+  'function getPositionsV2(uint256 perpId, uint256 pageStartPositionId, uint256 positionsPerPage) view returns (Position[] positions, uint256 numPositions, uint256 markPricePNS, bool markPriceValid)',
+  'function getPositionV2(uint256 perpId, uint256 accountId) view returns (Position positionInfo, uint256 markPricePNS, bool markPriceValid)',
+  'function getAccountByAddr(address accountAddress) view returns (Account)',
+  'function getAccountById(uint256 accountId) view returns (Account)',
+])
+
+const $ = (id) => document.getElementById(id)
+const params = new URLSearchParams(location.search)
+const netKey = params.get('net') === 'testnet' ? 'testnet' : 'mainnet'
+const NET = NETS[netKey]
+$('net').value = netKey
+$('net').onchange = (e) => { params.set('net', e.target.value); params.delete('wallet'); location.search = params.toString() }
+$('exChip').innerHTML = `exchange <a class="mono" href="${NET.explorer}/address/${NET.exchange}" target="_blank" rel="noopener">${NET.exchange.slice(0, 6)}…${NET.exchange.slice(-4)}</a>`
+
+const chain = { id: NET.id, name: 'Monad', nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 }, rpcUrls: { default: { http: [NET.rpc] } }, contracts: { multicall3: { address: MULTICALL3 } } }
+const client = createPublicClient({ chain, transport: http(NET.rpc, { retryCount: 2 }), batch: { multicall: { batchSize: 4096, wait: 16 } } })
+const read = (functionName, args = []) => client.readContract({ address: NET.exchange, abi, functionName, args })
+
+let collatDec = 6
+const usd = (v, max = 2) => '$' + v.toLocaleString('en-US', { minimumFractionDigits: Math.min(2, max), maximumFractionDigits: max })
+const compact = (v) => '$' + Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(v)
+const cns = (x) => Number(x) / 10 ** collatDec
+const fx = (x, d) => Number(x) / 10 ** Number(d)
+const pct = (x, d = 2) => (x * 100).toFixed(d) + '%'
+const ago = (s) => (s < 0 ? '0s' : s < 90 ? `${Math.round(s)}s` : s < 5400 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`)
+const showError = (m) => { $('err').style.display = m ? 'block' : 'none'; $('err').textContent = m || '' }
+
+/** Risk band from the distance (fraction of mark) to the liquidation price. */
+const band = (d) => (d < 0.05 ? ['t-bad', 'Critical'] : d < 0.1 ? ['t-high', 'High'] : d < 0.2 ? ['t-warn', 'Elevated'] : ['t-ok', 'OK'])
+const tripwire = (bps) => (bps >= LADDER[2] ? ['t-bad', 'FROZEN'] : bps >= LADDER[1] ? ['t-high', 'RESTRICTED'] : bps >= LADDER[0] ? ['t-warn', 'CAUTION'] : ['t-ok', 'NORMAL'])
+
+let markets = new Map() // perpId -> market view
+let positions = [] // radar rows
+let now = Math.floor(Date.now() / 1000)
+
+/**
+ * Turns an on-chain position into risk numbers. Liquidation price per Perpl docs (Liquidation → Calculating
+ * Liquidation Price): P_liq = P_entry + s·(MMR − deposit − funding)/L, MMR = P_entry·L / MMF, MMF = maintMarginFracHdths/100.
+ */
+function analyse(p, m) {
+  const L = fx(p.lotLNS, m.lotDecimals)
+  if (L === 0) return null
+  const s = p.positionType === 0 ? 1 : -1
+  const entry = fx(p.pricePNS, m.priceDecimals)
+  const deposit = cns(p.depositCNS)
+  const funding = cns(p.premiumPnlCNS)
+  const pnl = cns(p.pnlCNS)
+  const mmr = (entry * L) / m.mmf
+  const liq = entry + (s * (mmr - deposit - funding)) / L
+  const notional = L * m.mark
+  const equity = deposit + pnl
+  const distance = m.mark > 0 ? (s * (m.mark - liq)) / m.mark : 0
+  return { perpId: m.perpId, symbol: m.symbol, side: s, size: L, entry, liq, mark: m.mark, notional, deposit, pnl, funding, equity, leverage: equity > 0 ? notional / equity : Infinity, distance, accountId: p.accountId, lotDecimals: m.lotDecimals, priceDecimals: m.priceDecimals }
+}
+
+async function loadMarkets() {
+  const [info, accounts, bitmap, block] = await Promise.all([read('getExchangeInfo'), read('numberOfAccounts'), read('getPerpetualExistsBitmap'), client.getBlock()])
+  collatDec = Number(info[3])
+  now = Number(block.timestamp)
+  const ids = []
+  bitmap.forEach((word, w) => { for (let i = 0n; i < 256n; i++) if ((word >> i) & 1n) ids.push(BigInt(w) * 256n + i) })
+  const [infos, margins] = await Promise.all([
+    Promise.all(ids.map((id) => read('getPerpetualInfoV2', [id]))),
+    Promise.all(ids.map((id) => read('getMarginFractions', [id, 0n]))),
+  ])
+  const next = new Map()
+  ids.forEach((id, i) => {
+    const p = infos[i]
+    if (p.status === 0 || p.markPNS === 0n) return
+    const dec = Number(p.priceDecimals)
+    const mark = fx(p.markPNS, dec), oracle = fx(p.oraclePNS, dec)
+    next.set(id, {
+      perpId: id, symbol: p.symbol, name: p.name, priceDecimals: dec, lotDecimals: Number(p.lotDecimals),
+      mark, oracle, dislocationBps: oracle > 0 ? (Math.abs(mark - oracle) / oracle) * 10000 : 0,
+      oracleAge: now - Number(p.oracleTimestampSec), oiNotional: fx(p.longOpenInterestLNS, p.lotDecimals) * mark,
+      funding: Number(p.fundingRatePct100k) / 100000, insurance: cns(p.insuranceBalanceCNS),
+      mmf: Number(margins[i][1]) / 100, ignOracle: p.ignOracle, count: markets.get(id)?.count ?? 0, nearest: markets.get(id)?.nearest,
+    })
+  })
+  markets = next
+  $('kCollat').textContent = compact(cns(info[0]))
+  $('kIns').textContent = compact([...markets.values()].reduce((a, m) => a + m.insurance, 0))
+  $('kOI').textContent = compact([...markets.values()].reduce((a, m) => a + m.oiNotional, 0))
+  $('kAcc').textContent = Number(accounts).toLocaleString('en-US')
+  $('blockLbl').textContent = `block ${block.number.toLocaleString('en-US')}`
+  renderMarkets()
+}
+
+async function scanPositions() {
+  const rows = []
+  await Promise.all([...markets.values()].map(async (m) => {
+    let start = 0n, pages = 0, count = 0
+    while (pages++ < 40) {
+      const [list] = await read('getPositionsV2', [m.perpId, start, 100n])
+      if (!list.length) break
+      for (const p of list) { const a = analyse(p, m); if (a) { rows.push(a); count++ } }
+      start = list[list.length - 1].nextNodeId
+      if (start === 0n) break
+    }
+    m.count = count
+  }))
+  positions = rows.filter((r) => Number.isFinite(r.distance)).sort((a, b) => a.distance - b.distance)
+  for (const m of markets.values()) m.nearest = positions.find((r) => r.perpId === m.perpId)?.distance
+  $('kPos').textContent = positions.length.toLocaleString('en-US')
+  $('kRisk').textContent = compact(positions.filter((r) => r.distance < 0.1).reduce((a, r) => a + r.notional, 0))
+  renderMarkets()
+  renderRadar()
+}
+
+function renderMarkets() {
+  const list = [...markets.values()].sort((a, b) => b.oiNotional - a.oiNotional)
+  $('markets').innerHTML = list.map((m) => {
+    const [tc, tl] = m.ignOracle ? ['t-warn', 'NO ORACLE'] : tripwire(m.dislocationBps)
+    const cover = m.oiNotional > 0 ? m.insurance / m.oiNotional : 0
+    const nb = m.nearest === undefined ? '—' : `<span class="tag ${band(m.nearest)[0]}">${pct(m.nearest, 1)}</span>`
+    return `<tr><td><b>${m.symbol}</b></td><td class="n">${usd(m.mark, m.priceDecimals)}</td><td class="n">${usd(m.oracle, m.priceDecimals)}</td><td class="n">${m.dislocationBps.toFixed(1)} bps</td><td><span class="tag ${tc}">${tl}</span></td><td class="n">${ago(m.oracleAge)}</td><td class="n">${compact(m.oiNotional)}</td><td class="n ${m.funding > 0 ? 'neg' : m.funding < 0 ? 'pos' : ''}">${(m.funding * 100).toFixed(4)}%</td><td class="n">${pct(cover, 1)}</td><td class="n">${m.count || '—'}</td><td class="n">${nb}</td></tr>`
+  }).join('') || '<tr><td colspan="11" class="empty">No active markets.</td></tr>'
+}
+
+function renderRadar() {
+  $('radar').innerHTML = positions.slice(0, 15).map((r) => {
+    const [bc] = band(r.distance)
+    return `<tr class="click" data-account="${r.accountId}"><td><b>${r.symbol}</b></td><td class="${r.side > 0 ? 'long' : 'short'}">${r.side > 0 ? 'LONG' : 'SHORT'}</td><td class="n">${r.size.toLocaleString('en-US', { maximumFractionDigits: r.lotDecimals })}</td><td class="n">${usd(r.entry, r.priceDecimals)}</td><td class="n">${usd(r.liq, r.priceDecimals)}</td><td class="n"><span class="tag ${bc}">${pct(r.distance, 1)}</span></td><td class="n">${Number.isFinite(r.leverage) ? r.leverage.toFixed(1) + 'x' : '∞'}</td><td class="n">${compact(r.notional)}</td><td class="n mono">#${r.accountId}</td></tr>`
+  }).join('') || '<tr><td colspan="9" class="empty">No open positions.</td></tr>'
+  for (const tr of $('radar').querySelectorAll('tr.click')) tr.onclick = () => inspectAccountId(BigInt(tr.dataset.account))
+}
+
+async function inspectAccountId(id) {
+  const acc = await read('getAccountById', [id])
+  $('addr').value = acc.accountAddr
+  await renderWallet(acc)
+  $('walletCard').scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+let walletAcc = null
+async function renderWallet(acc) {
+  walletAcc = acc
+  params.set('wallet', acc.accountAddr); history.replaceState(null, '', `?${params}`)
+  const held = [...markets.values()].filter((m) => (acc.positions.bank1 >> m.perpId) & 1n || m.perpId > 255n)
+  const results = await Promise.all(held.map((m) => read('getPositionV2', [m.perpId, acc.accountId]).then((r) => analyse(r[0], m))))
+  const rows = results.filter(Boolean)
+  const equity = rows.reduce((a, r) => a + r.equity, 0)
+  const notional = rows.reduce((a, r) => a + r.notional, 0)
+  const worst = rows.length ? Math.min(...rows.map((r) => r.distance)) : undefined
+  $('wallet').innerHTML = `
+    <div class="acct">
+      <div><span>Account</span><b class="mono"><a href="${NET.explorer}/address/${acc.accountAddr}" target="_blank" rel="noopener">#${acc.accountId}</a></b></div>
+      <div><span>Free collateral</span><b>${usd(cns(acc.balanceCNS))}</b></div>
+      <div><span>Equity in positions</span><b>${usd(equity)}</b></div>
+      <div><span>Total notional</span><b>${usd(notional)}</b></div>
+      <div><span>Closest liquidation</span><b>${worst === undefined ? '—' : `<span class="tag ${band(worst)[0]}">${pct(worst, 1)} · ${band(worst)[1]}</span>`}</b></div>
+    </div>
+    ${acc.frozen ? '<p class="note"><span class="tag t-bad">FROZEN ACCOUNT</span></p>' : ''}
+    <div class="scroll"><table>
+      <thead><tr><th>Market</th><th>Side</th><th class="n">Size</th><th class="n">Entry</th><th class="n">Mark</th><th class="n">Notional</th><th class="n">Deposit</th><th class="n">Unrealized PnL</th><th class="n">of which funding</th><th class="n">Leverage</th><th class="n">Liq. price</th><th class="n">Distance</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr><td><b>${r.symbol}</b></td><td class="${r.side > 0 ? 'long' : 'short'}">${r.side > 0 ? 'LONG' : 'SHORT'}</td><td class="n">${r.size.toLocaleString('en-US', { maximumFractionDigits: r.lotDecimals })}</td><td class="n">${usd(r.entry, r.priceDecimals)}</td><td class="n">${usd(r.mark, r.priceDecimals)}</td><td class="n">${usd(r.notional)}</td><td class="n">${usd(r.deposit)}</td><td class="n ${r.pnl >= 0 ? 'pos' : 'neg'}">${usd(r.pnl)}</td><td class="n ${r.funding >= 0 ? 'pos' : 'neg'}">${usd(r.funding)}</td><td class="n">${Number.isFinite(r.leverage) ? r.leverage.toFixed(1) + 'x' : '∞'}</td><td class="n">${usd(r.liq, r.priceDecimals)}</td><td class="n"><span class="tag ${band(r.distance)[0]}">${pct(r.distance, 1)}</span></td></tr>`).join('') || '<tr><td colspan="12" class="empty">No open positions.</td></tr>'}</tbody>
+    </table></div>`
+}
+
+$('inspect').onclick = async () => {
+  const a = $('addr').value.trim()
+  if (!isAddress(a)) { $('wallet').innerHTML = '<div class="empty">That is not a valid address.</div>'; return }
+  try {
+    const acc = await read('getAccountByAddr', [a])
+    if (acc.accountId === 0n) { $('wallet').innerHTML = '<div class="empty">No Perpl account for this address.</div>'; return }
+    await renderWallet(acc)
+  } catch { $('wallet').innerHTML = '<div class="empty">No Perpl account for this address.</div>' }
+}
+$('addr').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('inspect').click() })
+
+async function tick() {
+  try {
+    await loadMarkets()
+    if (walletAcc) await renderWallet(await read('getAccountById', [walletAcc.accountId]))
+    $('liveDot').className = 'dot'; showError('')
+  } catch (e) { $('liveDot').className = 'dot off'; showError(`RPC error: ${e.shortMessage || e.message}`) }
+}
+
+await tick()
+scanPositions().catch((e) => showError(`Position scan failed: ${e.shortMessage || e.message}`))
+if (params.get('wallet') && isAddress(params.get('wallet'))) { $('addr').value = params.get('wallet'); $('inspect').click() }
+setInterval(tick, 5000)
+setInterval(() => scanPositions().catch(() => {}), 60000)
+</script>
+</body>
+</html>

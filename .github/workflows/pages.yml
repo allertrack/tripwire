@@ -26,7 +26,7 @@ jobs:
       - name: Bundle the static monitor with the live testnet deployment
         run: |
           mkdir -p site
-          cp dashboard/index.html site/
+          cp dashboard/index.html dashboard/perpl.html site/
           cp contracts/deployments/monad-testnet.json site/deployment.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
