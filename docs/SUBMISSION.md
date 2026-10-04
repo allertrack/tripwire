@@ -13,9 +13,9 @@
 - Perpl: Best Analytics/Risk Tool
 
 **Links:**
-- Code: https://github.com/allertrack/tripwire *(to confirm once published)*
+- Code: https://github.com/allertrack/tripwire
 - Demo video: *(YouTube link)*
-- Live monitor: *(GitHub Pages link)*
+- Live monitor: https://allertrack.github.io/tripwire/
 - Deployment: Monad testnet. Addresses are in `contracts/deployments/monad-testnet.json` and the README.
 
 ---
