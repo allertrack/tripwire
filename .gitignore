@@ -25,3 +25,4 @@ dashboard/deployment.local.json
 .claude/
 tools/video/out/
 dashboard/deployment.capture.json
+outreach/
