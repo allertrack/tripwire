@@ -564,16 +564,16 @@ contract TripwireGuardTest is GuardFixture {
     vm.warp(block.timestamp + 30);
     vm.prank(forwarder);
     guard.onReport(_metadata(), _report(address(guard), uint40(block.timestamp), NORMAL, 0));
-    vm.snapshotGasLastCall("onReport: heartbeat");
+    vm.snapshotGasLastFrame("onReport: heartbeat");
 
     vm.warp(block.timestamp + 30);
     vm.prank(forwarder);
     guard.onReport(_metadata(), _report(address(guard), uint40(block.timestamp), FROZEN, Reasons.ORACLE_DEVIATION));
-    vm.snapshotGasLastCall("onReport: trip");
+    vm.snapshotGasLastFrame("onReport: trip");
 
     guard.isAllowed(Actions.BORROW);
-    vm.snapshotGasLastCall("isAllowed");
+    vm.snapshotGasLastFrame("isAllowed");
     guard.isBorrowAllowed();
-    vm.snapshotGasLastCall("isBorrowAllowed (Aave sentinel)");
+    vm.snapshotGasLastFrame("isBorrowAllowed (Aave sentinel)");
   }
 }

@@ -21,3 +21,5 @@ Thumbs.db
 .idea/
 workflow/tripwire/.cre_build_tmp.js
 .testnet-address
+dashboard/deployment.local.json
+.claude/

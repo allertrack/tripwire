@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.4
+      - run: npm ci --ignore-scripts
+      - run: forge fmt --check src test script
+      - run: forge build --sizes
+      - name: Unit, fuzz and invariant tests (gas snapshots must not drift)
+        env:
+          FOUNDRY_PROFILE: ci
+          FORGE_SNAPSHOT_CHECK: 'true'
+        run: forge test --no-match-path 'test/fork/*' -vv
+      - name: Aave V3 integration (fork of the live Sepolia market)
+        env:
+          # An unset secret is an empty string, which vm.envOr would return instead of its public default.
+          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com' }}
+        run: forge test --match-path 'test/fork/*' -vv
+
+  workflow:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workflow/tripwire
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+      - name: Compile to WASM (what the CRE CLI deploys)
+        run: bunx cre-compile main.ts && rm -f main.js main.wasm

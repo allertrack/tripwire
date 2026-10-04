@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tripwire Monitor</title>
+<meta name="description" content="Live view of a Tripwire guard on Monad testnet: level, watcher liveness, price integrity and market pressure.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #14171f; --muted: #5d6474; --line: #e3e6ec; --soft: #eef0f4;
+    --normal: #12805c; --normal-bg: #e3f5ed; --caution: #a86400; --caution-bg: #fdf1dc;
+    --restricted: #c2410c; --restricted-bg: #fde8dd; --frozen: #b4232f; --frozen-bg: #fbe4e6;
+    --accent: #375bd2; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1016; --panel: #151a23; --ink: #e8ebf1; --muted: #949cad; --line: #252c38; --soft: #1c222d;
+      --normal: #3ccf96; --normal-bg: #12302a; --caution: #f2b53b; --caution-bg: #3a2c10;
+      --restricted: #fb8a4c; --restricted-bg: #3d2114; --frozen: #ff6b78; --frozen-bg: #40171c;
+      --accent: #7c9cff; --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1016; --panel: #151a23; --ink: #e8ebf1; --muted: #949cad; --line: #252c38; --soft: #1c222d;
+    --normal: #3ccf96; --normal-bg: #12302a; --caution: #f2b53b; --caution-bg: #3a2c10;
+    --restricted: #fb8a4c; --restricted-bg: #3d2114; --frozen: #ff6b78; --frozen-bg: #40171c;
+    --accent: #7c9cff; --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 Inter, system-ui, sans-serif; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -.01em; }
+  .brand svg { width: 26px; height: 26px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--soft); color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .chip a { color: inherit; }
+  .spacer { flex: 1; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--normal); box-shadow: 0 0 0 3px var(--normal-bg); }
+  .dot.off { background: var(--frozen); box-shadow: 0 0 0 3px var(--frozen-bg); }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); min-width: 0; }
+  .card h2 { margin: 0 0 12px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .span-5 { grid-column: span 5; } .span-7 { grid-column: span 7; } .span-4 { grid-column: span 4; } .span-8 { grid-column: span 8; } .span-12 { grid-column: span 12; } .span-6 { grid-column: span 6; }
+  @media (max-width: 900px) { .span-5, .span-7, .span-4, .span-8, .span-6 { grid-column: span 12; } }
+  .level { border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .level .name { font-size: 40px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+  .level .sub { color: var(--muted); }
+  .L0 { background: var(--normal-bg); color: var(--normal); } .L1 { background: var(--caution-bg); color: var(--caution); }
+  .L2 { background: var(--restricted-bg); color: var(--restricted); } .L3 { background: var(--frozen-bg); color: var(--frozen); }
+  .reasons { display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px; }
+  .reason { padding: 2px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin-top: 12px; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  @media (max-width: 520px) { .actions { grid-template-columns: repeat(2, 1fr); } }
+  .action { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .action b { font-weight: 600; }
+  .pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .on { background: var(--normal-bg); color: var(--normal); } .off { background: var(--frozen-bg); color: var(--frozen); }
+  .note { color: var(--muted); font-size: 12.5px; margin: 10px 0 0; }
+  .bar { height: 8px; border-radius: 999px; background: var(--soft); overflow: hidden; margin: 6px 0 2px; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+  .bar.warn > i { background: var(--caution); } .bar.bad > i { background: var(--frozen); }
+  .metric { margin-bottom: 12px; } .metric .row { display: flex; justify-content: space-between; gap: 8px; }
+  .metric .row span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .feed { max-height: 360px; overflow: auto; }
+  .ev { display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--line); align-items: start; }
+  .ev:last-child { border-bottom: 0; }
+  .ev .t { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ev a { color: var(--accent); text-decoration: none; }
+  .tag { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; margin-right: 6px; }
+  .empty { color: var(--muted); padding: 12px 4px; }
+  .err { background: var(--frozen-bg); color: var(--frozen); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; display: none; }
+  button.theme { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 8px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+  .delta { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor" opacity=".08"/><path d="M5 20h6l3-9 4 14 3-9h6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Tripwire
+    </div>
+    <span class="chip" id="net">Monad testnet</span>
+    <span class="chip mono" id="guardChip">guard —</span>
+    <div class="spacer"></div>
+    <span class="chip"><span class="dot" id="liveDot"></span><span id="blockLbl">connecting…</span></span>
+    <button class="theme" id="themeBtn" type="button">Theme</button>
+  </header>
+  <div class="err" id="err"></div>
+
+  <div class="grid">
+    <section class="card span-5">
+      <h2>Guard</h2>
+      <div class="level L0" id="levelBox">
+        <div class="sub" id="levelSub">Effective level</div>
+        <div class="name" id="levelName">—</div>
+        <div class="reasons" id="reasons"></div>
+      </div>
+      <dl class="kv">
+        <dt>Stored level</dt><dd id="stored">—</dd>
+        <dt>Watcher's latest view</dt><dd id="reported">—</dd>
+        <dt>Last tripped</dt><dd id="tripped">—</dd>
+        <dt>Relax proposal</dt><dd id="relax">none</dd>
+      </dl>
+    </section>
+
+    <section class="card span-7">
+      <h2>What the market allows right now</h2>
+      <div class="actions" id="actions"></div>
+      <p class="note">Repay, supply and add collateral are never gated. Positions below health factor 0.95 stay liquidatable at every level.</p>
+      <div class="metric" style="margin-top:14px">
+        <div class="row"><span>Watcher heartbeat</span><span id="hbLbl">—</span></div>
+        <div class="bar" id="hbBar"><i></i></div>
+        <div class="delta" id="hbNote">If the watcher goes quiet for a full heartbeat, the guard fails safe on its own.</div>
+      </div>
+    </section>
+
+    <section class="card span-6">
+      <h2>Price integrity</h2>
+      <table>
+        <thead><tr><th>Source</th><th class="num">Price (USD)</th><th class="num">vs market</th></tr></thead>
+        <tbody id="prices"></tbody>
+      </table>
+      <p class="note" id="priceNote">The market's own oracle is checked against every independent reference; the closest one counts.</p>
+    </section>
+
+    <section class="card span-6">
+      <h2>Market pressure</h2>
+      <div class="metric"><div class="row"><span>Utilization</span><span id="utilLbl">—</span></div><div class="bar" id="utilBar"><i></i></div></div>
+      <div class="metric"><div class="row"><span>Outflow, trailing window</span><span id="outLbl">—</span></div><div class="bar" id="outBar"><i></i></div></div>
+      <dl class="kv">
+        <dt>Supplied</dt><dd id="supplied">—</dd>
+        <dt>Borrowed</dt><dd id="borrowed">—</dd>
+        <dt>Market oracle updated</dt><dd id="oracleAge">—</dd>
+      </dl>
+    </section>
+
+    <section class="card span-12">
+      <h2>Guard activity</h2>
+      <div class="feed" id="feed"><div class="empty">Loading recent blocks…</div></div>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+import { createPublicClient, http, parseAbi, parseAbiItem, formatUnits } from 'https://cdn.jsdelivr.net/npm/viem@2.34.0/+esm'
+
+const LEVELS = ['Normal', 'Caution', 'Restricted', 'Frozen']
+const REASONS = [[1, 'Oracle deviation'], [2, 'Oracle stale'], [4, 'References diverge'], [8, 'No reference'], [16, 'Utilization'], [32, 'Outflow velocity'], [64, 'Perp dislocation'], [1 << 30, 'Manual'], [2 ** 31, 'Watcher silent']]
+const ACTIONS = [[1, 'Borrow'], [2, 'Withdraw'], [4, 'Liquidate'], [8, 'Mint'], [16, 'Bridge out'], [32, 'Swap']]
+const EXPLORER = 'https://testnet.monadvision.com'
+
+const guardAbi = parseAbi([
+  'struct Status { uint8 level; uint8 effectiveLevel; bool stale; uint32 reasons; uint32 epoch; uint40 lastObservedAt; uint32 heartbeat; uint8 staleLevel; uint8 lastReportedLevel; uint32 lastReportedReasons; uint64 permissions; bool relaxPending; uint8 relaxTarget; uint40 relaxReadyAt; uint40 trippedAt; }',
+  'function status() view returns (Status)',
+])
+const marketAbi = parseAbi([
+  'struct RiskSnapshot { uint256 totalSupplied; uint256 totalBorrowed; uint256 windowOutflow; uint32 windowSeconds; int256 price; uint256 priceUpdatedAt; uint8 priceDecimals; }',
+  'function riskSnapshot() view returns (RiskSnapshot)',
+])
+const feedAbi = parseAbi(['function latestRoundData() view returns (uint80, int256, uint256, uint256, uint80)'])
+const perplAbi = parseAbi([
+  'struct PerpetualInfo { string name; string symbol; uint256 priceDecimals; uint256 lotDecimals; bytes32 linkFeedId; uint256 priceTolPer100K; uint256 marginTol; uint256 marginTolDecimals; uint256 refPriceMaxAgeSec; uint256 positionBalanceCNS; uint256 insuranceBalanceCNS; uint256 markPNS; uint256 markTimestamp; uint256 lastPNS; uint256 lastTimestamp; uint256 oraclePNS; uint256 oracleTimestampSec; uint256 longOpenInterestLNS; uint256 shortOpenInterestLNS; uint256 fundingStartBlock; int16 fundingRatePct100k; uint256 absFundingClampPctPer100K; uint8 status; uint256 basePricePNS; uint256 maxBidPriceONS; uint256 minBidPriceONS; uint256 maxAskPriceONS; uint256 minAskPriceONS; uint256 numOrders; bool ignOracle; uint256 fundingSumScalingExp; }',
+  'function getPerpetualInfoV2(uint256 perpId) view returns (PerpetualInfo)',
+])
+const EVENTS = {
+  Tripped: parseAbiItem('event Tripped(uint8 indexed from, uint8 indexed to, uint32 reasons, bytes32 evidenceHash, address indexed by)'),
+  Observed: parseAbiItem('event Observed(uint40 observedAt, uint8 level, uint32 reasons, bytes32 evidenceHash, uint256 metrics)'),
+  RelaxProposed: parseAbiItem('event RelaxProposed(uint8 target, uint40 readyAt, uint32 epoch)'),
+  RelaxCancelled: parseAbiItem('event RelaxCancelled(address indexed by)'),
+  Relaxed: parseAbiItem('event Relaxed(uint8 indexed from, uint8 indexed to)'),
+}
+
+const $ = (id) => document.getElementById(id)
+const params = new URLSearchParams(location.search)
+const reasonList = (r) => REASONS.filter(([bit]) => (r & bit) !== 0).map(([, n]) => n)
+const usd = (v, d = 8) => '$' + Number(formatUnits(v, d)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const tokens = (v, d = 6) => Number(formatUnits(v, d)).toLocaleString('en-US', { maximumFractionDigits: 0 })
+const ago = (s) => ((s = Math.max(0, s)), s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)}m ${s % 60}s ago` : `${Math.floor(s / 3600)}h ago`)
+const clock = (unix) => new Date(Number(unix) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+const short = (a) => a.slice(0, 6) + '…' + a.slice(-4)
+const unpack = (m) => ({
+  deviation: m & 0xffffn, spread: (m >> 16n) & 0xffffn, utilization: (m >> 32n) & 0xffffn, outflow: (m >> 48n) & 0xffffn,
+  oracleAge: (m >> 64n) & 0xffffffffn, market: (m >> 96n) & ((1n << 64n) - 1n), reference: (m >> 160n) & ((1n << 64n) - 1n),
+  sources: Number((m >> 224n) & 0xffn), perp: (m >> 232n) & 0xffffn,
+})
+
+// Theme toggle (remembered per browser).
+const applyTheme = (t) => { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme }
+try { applyTheme(localStorage.getItem('tripwire-theme')) } catch {}
+$('themeBtn').onclick = () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
+  const next = dark ? 'light' : 'dark'; applyTheme(next)
+  try { localStorage.setItem('tripwire-theme', next) } catch {}
+}
+
+const showError = (msg) => { $('err').style.display = msg ? 'block' : 'none'; $('err').textContent = msg || '' }
+
+let dep
+try {
+  dep = await (await fetch(params.get('deployment') || './deployment.json', { cache: 'no-store' })).json()
+} catch { dep = {} }
+for (const k of ['guard', 'pool', 'chainlinkFeed', 'rpc', 'perplExchange', 'perpId', 'deployedAtBlock']) if (params.get(k)) dep[k] = params.get(k)
+const rpc = dep.rpc || 'https://testnet-rpc.monad.xyz'
+if (!dep.guard || !dep.pool) showError('No deployment found: add ?guard=0x…&pool=0x… to the URL.')
+$('guardChip').innerHTML = dep.guard ? `guard <a class="mono" href="${EXPLORER}/address/${dep.guard}" target="_blank" rel="noopener">${short(dep.guard)}</a>` : 'guard —'
+if (rpc.includes('127.0.0.1') || rpc.includes('localhost')) $('net').textContent = 'Local fork of Monad testnet'
+
+const client = createPublicClient({ transport: http(rpc, { batch: true, retryCount: 2 }) })
+const perplExchange = dep.perplExchange || '0x1964C32f0bE608E7D29302AFF5E61268E72080cc'
+const perpId = BigInt(dep.perpId || 32)
+
+let lastMetrics = null
+const events = new Map()
+let scannedTo = 0n
+
+function renderStatus(s, now) {
+  const eff = Number(s.effectiveLevel)
+  $('levelBox').className = `level L${eff}`
+  $('levelName').textContent = LEVELS[eff].toUpperCase()
+  $('levelSub').textContent = s.stale ? 'Effective level · watcher silent, failing safe' : 'Effective level'
+  $('reasons').innerHTML = reasonList(s.reasons).map((r) => `<span class="reason">${r}</span>`).join('') || '<span class="sub">No active reasons</span>'
+  $('stored').textContent = `${LEVELS[s.level]} · epoch ${s.epoch}`
+  $('reported').textContent = `${LEVELS[s.lastReportedLevel]}${s.lastReportedReasons ? ' · ' + reasonList(s.lastReportedReasons).join(', ') : ''}`
+  $('tripped').textContent = s.trippedAt ? `${clock(s.trippedAt)} (${ago(now - Number(s.trippedAt))})` : 'never'
+  $('relax').textContent = s.relaxPending
+    ? `to ${LEVELS[s.relaxTarget]} · ${Number(s.relaxReadyAt) > now ? `ready in ${Number(s.relaxReadyAt) - now}s` : 'matured, needs watcher agreement'}`
+    : 'none'
+  const allowed = Number((s.permissions >> BigInt(16 * eff)) & 0xffffn)
+  $('actions').innerHTML = ACTIONS.map(([bit, name]) => `<div class="action"><b>${name}</b><span class="pill ${allowed & bit ? 'on' : 'off'}">${allowed & bit ? 'ALLOWED' : 'PAUSED'}</span></div>`).join('')
+  const age = Math.max(0, now - Number(s.lastObservedAt))
+  const pct = Math.min(100, (age / s.heartbeat) * 100)
+  $('hbLbl').textContent = `${ago(age)} · heartbeat ${Math.round(s.heartbeat / 60)} min`
+  $('hbBar').className = `bar ${pct > 85 ? 'bad' : pct > 60 ? 'warn' : ''}`
+  $('hbBar').firstElementChild.style.width = pct + '%'
+}
+
+function renderMarket(m, feed, perp, now) {
+  const marketPrice = (m.price * 10n ** 8n) / 10n ** BigInt(m.priceDecimals)
+  const util = m.totalSupplied ? Number((m.totalBorrowed * 10000n) / m.totalSupplied) / 100 : 0
+  const out = Number((m.windowOutflow * 10000n) / (m.totalSupplied + m.windowOutflow || 1n)) / 100
+  $('utilLbl').textContent = util.toFixed(2) + '%'
+  $('utilBar').className = `bar ${util >= 98 ? 'bad' : util >= 90 ? 'warn' : ''}`; $('utilBar').firstElementChild.style.width = Math.min(100, util) + '%'
+  $('outLbl').textContent = `${out.toFixed(2)}% · ${Math.round(m.windowSeconds / 60)} min`
+  $('outBar').className = `bar ${out >= 25 ? 'bad' : out >= 10 ? 'warn' : ''}`; $('outBar').firstElementChild.style.width = Math.min(100, out * 2) + '%'
+  $('supplied').textContent = tokens(m.totalSupplied) + ' tUSDC'
+  $('borrowed').textContent = tokens(m.totalBorrowed) + ' tUSDC'
+  $('oracleAge').textContent = ago(Math.max(0, now - Number(m.priceUpdatedAt)))
+
+  const rows = [['Market oracle (protected market)', marketPrice, null, true]]
+  if (feed) rows.push(['Chainlink Data Feed · ETH/USD', feed, 'on-chain, Monad'])
+  if (perp) rows.push(['Perpl oracle · Chainlink Data Streams', perp.oracle, 'on-chain, Monad'], ['Perpl order book · mark', perp.mark, 'stress signal'])
+  if (lastMetrics && lastMetrics.reference) rows.push(['Closest reference in last report', lastMetrics.reference, 'DON consensus'])
+  $('prices').innerHTML = rows.map(([name, p, note, self]) => {
+    const dev = self ? '—' : (Number(((marketPrice - p) * 1000000n) / p) / 10000).toFixed(2) + '%'
+    return `<tr><td>${name}${note ? `<div class="delta">${note}</div>` : ''}</td><td class="num">${usd(p)}</td><td class="num">${dev}</td></tr>`
+  }).join('')
+}
+
+function renderFeed() {
+  const list = [...events.values()].sort((a, b) => (a.blockNumber === b.blockNumber ? b.logIndex - a.logIndex : Number(b.blockNumber - a.blockNumber)))
+  if (!list.length) { $('feed').innerHTML = '<div class="empty">No guard activity in the scanned blocks yet. Reports appear here as the CRE workflow sends them.</div>'; return }
+  $('feed').innerHTML = list.slice(0, 80).map((e) => {
+    const a = e.args
+    let tag = '', text = ''
+    if (e.eventName === 'Tripped') { tag = `<span class="tag L${a.to}">TRIPPED</span>`; text = `${LEVELS[a.from]} → <b>${LEVELS[a.to]}</b> · ${reasonList(a.reasons).join(', ') || '—'}` }
+    else if (e.eventName === 'Observed') {
+      const m = unpack(a.metrics)
+      tag = `<span class="tag L${a.level}">REPORT</span>`
+      text = `watcher sees <b>${LEVELS[a.level]}</b>${a.reasons ? ' · ' + reasonList(a.reasons).join(', ') : ''}<div class="delta mono">deviation ${m.deviation} bps · spread ${m.spread} bps · utilization ${m.utilization} bps · outflow ${m.outflow} bps · perp ${m.perp} bps · sources ${m.sources.toString(2).padStart(3, '0')}</div>`
+    }
+    else if (e.eventName === 'RelaxProposed') { tag = '<span class="tag L1">PROPOSAL</span>'; text = `governance proposes relax to <b>${LEVELS[a.target]}</b>, ready ${clock(a.readyAt)}` }
+    else if (e.eventName === 'RelaxCancelled') { tag = '<span class="tag L2">CANCELLED</span>'; text = `relax proposal cancelled by ${short(a.by)}` }
+    else if (e.eventName === 'Relaxed') { tag = '<span class="tag L0">RELAXED</span>'; text = `${LEVELS[a.from]} → <b>${LEVELS[a.to]}</b> (governance + watcher agreed)` }
+    const when = e.time ? clock(e.time) : `#${e.blockNumber}`
+    return `<div class="ev"><span class="t">${when}</span><span>${tag}${text}</span><a class="mono" href="${EXPLORER}/tx/${e.transactionHash}" target="_blank" rel="noopener">${short(e.transactionHash)}</a></div>`
+  }).join('')
+}
+
+const blockTimes = new Map()
+async function scan(from, to) {
+  const logs = await client.getLogs({ address: dep.guard, events: Object.values(EVENTS), fromBlock: from, toBlock: to })
+  for (const l of logs) {
+    const key = `${l.transactionHash}:${l.logIndex}`
+    if (events.has(key)) continue
+    events.set(key, l)
+    if (l.eventName === 'Observed' && (!lastMetrics || l.blockNumber >= lastMetrics.block)) lastMetrics = { ...unpack(l.args.metrics), block: l.blockNumber }
+  }
+  // Timestamp every event by its block (cached; only blocks that carry guard events are fetched).
+  const missing = [...new Set(logs.map((l) => l.blockNumber))].filter((b) => !blockTimes.has(b))
+  await Promise.all(missing.map((b) => client.getBlock({ blockNumber: b }).then((blk) => blockTimes.set(b, Number(blk.timestamp))).catch(() => {})))
+  for (const l of logs) events.get(`${l.transactionHash}:${l.logIndex}`).time = blockTimes.get(l.blockNumber)
+}
+
+async function backfill(head) {
+  // Public Monad RPCs serve eth_getLogs over at most 100 blocks: scan the recent past in parallel chunks.
+  const floor = dep.deployedAtBlock ? BigInt(dep.deployedAtBlock) : 0n
+  const chunks = []
+  for (let i = 0n; i < 40n; i++) {
+    const to = head - i * 100n, from = to - 99n
+    if (to < floor) break
+    chunks.push([from < floor ? floor : from, to])
+  }
+  for (let i = 0; i < chunks.length; i += 8) await Promise.all(chunks.slice(i, i + 8).map(([f, t]) => scan(f, t).catch(() => {})))
+  scannedTo = head
+  renderFeed()
+}
+
+async function tick() {
+  try {
+    const head = await client.getBlockNumber()
+    const [block, status, market, feed, perp] = await Promise.all([
+      client.getBlock({ blockNumber: head }),
+      client.readContract({ address: dep.guard, abi: guardAbi, functionName: 'status' }),
+      client.readContract({ address: dep.pool, abi: marketAbi, functionName: 'riskSnapshot' }),
+      dep.chainlinkFeed ? client.readContract({ address: dep.chainlinkFeed, abi: feedAbi, functionName: 'latestRoundData' }).then((r) => r[1]).catch(() => null) : null,
+      client.readContract({ address: perplExchange, abi: perplAbi, functionName: 'getPerpetualInfoV2', args: [perpId] })
+        .then((p) => ({ oracle: (p.oraclePNS * 10n ** 8n) / 10n ** p.priceDecimals, mark: (p.markPNS * 10n ** 8n) / 10n ** p.priceDecimals })).catch(() => null),
+    ])
+    const now = Number(block.timestamp)
+    if (scannedTo === 0n) await backfill(head)
+    else if (head > scannedTo) { await scan(scannedTo + 1n, head > scannedTo + 99n ? scannedTo + 99n : head); scannedTo = head > scannedTo + 99n ? scannedTo + 99n : head; renderFeed() }
+    renderStatus(status, now)
+    renderMarket(market, feed, perp, now)
+    $('blockLbl').textContent = `block ${head.toLocaleString('en-US')}`
+    $('liveDot').className = 'dot'
+    showError('')
+  } catch (e) {
+    $('liveDot').className = 'dot off'
+    showError(`RPC error: ${e.shortMessage || e.message}`)
+  }
+}
+
+if (dep.guard && dep.pool) { await tick(); setInterval(tick, 2000) }
+</script>
+</body>
+</html>
