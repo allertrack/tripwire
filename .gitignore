@@ -1,0 +1,22 @@
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/deployments/local.json
+# Node / Bun
+node_modules/
+# CRE build output and local configs
+workflow/tripwire/main.js
+workflow/tripwire/main.wasm
+workflow/tripwire/config.local.json
+workflow/.env*
+!workflow/.env.example
+# Secrets
+.env
+*.key
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+workflow/tripwire/.cre_build_tmp.js

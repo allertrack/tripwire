@@ -1,0 +1,40 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["node_modules", "lib"]
+solc_version = "0.8.30"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 10_000
+bytecode_hash = "none"
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
+
+[profile.default.fuzz]
+runs = 1_000
+
+[profile.default.invariant]
+runs = 256
+depth = 64
+fail_on_revert = false
+
+[profile.ci.fuzz]
+runs = 5_000
+
+[profile.ci.invariant]
+runs = 512
+depth = 128
+
+[rpc_endpoints]
+monad_testnet = "${MONAD_TESTNET_RPC_URL}"
+sepolia = "${SEPOLIA_RPC_URL}"
+
+[fmt]
+tab_width = 2
+multiline_func_header = "params_first"
+sort_imports = true
+line_length = 120
+
+[lint]
+lint_on_build = false

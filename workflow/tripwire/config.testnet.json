@@ -1,0 +1,50 @@
+{
+  "schedule": "*/30 * * * * *",
+  "reference": {
+    "symbol": "ETH",
+    "exchanges": [
+      "coinbase",
+      "kraken",
+      "bitstamp"
+    ],
+    "minExchanges": 2,
+    "chainlinkFeed": {
+      "chainSelectorName": "monad-testnet",
+      "address": "0x5c8c8482f064049248F86D9F4aFa4B1f2F5b6d31",
+      "decimals": 8,
+      "maxAgeSeconds": 90000
+    },
+    "maxSpreadBps": 150
+  },
+  "markets": [
+    {
+      "name": "tWETH/tUSDC",
+      "chainSelectorName": "monad-testnet",
+      "guard": "0x0000000000000000000000000000000000000001",
+      "market": "0x0000000000000000000000000000000000000002",
+      "gasLimit": "400000",
+      "heartbeatRefreshSeconds": 300,
+      "thresholds": {
+        "deviationBps": [
+          200,
+          500,
+          1000
+        ],
+        "utilizationBps": [
+          9000,
+          9800,
+          65535
+        ],
+        "outflowBps": [
+          1000,
+          2500,
+          5000
+        ],
+        "maxOracleAgeSeconds": 3600,
+        "staleOracleLevel": 2,
+        "referenceDivergenceLevel": 1,
+        "referenceUnavailableLevel": 1
+      }
+    }
+  ]
+}

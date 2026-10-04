@@ -1,0 +1,18 @@
+# ==========================================================================
+# CRE PROJECT SETTINGS — Tripwire
+# ==========================================================================
+staging-settings:
+  rpcs:
+    - chain-name: monad-testnet
+      url: https://testnet-rpc.monad.xyz
+
+testnet-settings:
+  rpcs:
+    - chain-name: monad-testnet
+      url: https://testnet-rpc.monad.xyz
+
+# Local anvil fork of Monad testnet: the MockKeystoneForwarder and the Chainlink ETH/USD feed are already there.
+local-settings:
+  rpcs:
+    - chain-name: monad-testnet
+      url: http://127.0.0.1:8545

@@ -1,0 +1,28 @@
+# ==========================================================================
+# CRE WORKFLOW SETTINGS — tripwire
+# ==========================================================================
+staging-settings:
+  user-workflow:
+    workflow-name: "tripwire"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: ""
+
+# Live Monad testnet deployment (contracts/deployments/monad-testnet.json)
+testnet-settings:
+  user-workflow:
+    workflow-name: "tripwire"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.testnet.json"
+    secrets-path: ""
+
+# Local anvil fork of Monad testnet (scripts/local-e2e.sh)
+local-settings:
+  user-workflow:
+    workflow-name: "tripwire"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.local.json"
+    secrets-path: ""
