@@ -7,6 +7,8 @@ export const MONAD_TESTNET = 2183018362218727504n
 export const GUARD = '0x1111111111111111111111111111111111111111' as Hex
 export const MARKET = '0x2222222222222222222222222222222222222222' as Hex
 export const FEED = '0x5c8c8482f064049248f86d9f4afa4b1f2f5b6d31' as Hex
+export const PERPL = '0x1964c32f0be608e7d29302aff5e61268e72080cc' as Hex
+export const PERP_ID = 32n
 export const GUARD_2 = '0x3333333333333333333333333333333333333333' as Hex
 export const MARKET_2 = '0x4444444444444444444444444444444444444444' as Hex
 export const NOW = 1_791_120_000n
@@ -21,6 +23,7 @@ export const thresholds = {
 	staleOracleLevel: Level.Restricted,
 	referenceDivergenceLevel: Level.Caution,
 	referenceUnavailableLevel: Level.Caution,
+	perpDislocationBps: [150, 400, 1_000] as [number, number, number],
 }
 
 export const market = (name: string, guard: Hex, marketAddr: Hex) => ({
@@ -41,6 +44,7 @@ export const config = (overrides: Partial<Config> = {}): Config =>
 			exchanges: ['coinbase', 'kraken', 'bitstamp'],
 			minExchanges: 2,
 			chainlinkFeed: { chainSelectorName: 'monad-testnet', address: FEED, decimals: 8, maxAgeSeconds: 90_000 },
+			perpl: { chainSelectorName: 'monad-testnet', exchange: PERPL, perpId: Number(PERP_ID), maxAgeSeconds: 120 },
 			maxSpreadBps: 150,
 		},
 		markets: [market('tWETH/tUSDC', GUARD, MARKET)],

@@ -1,9 +1,9 @@
 import { HTTPClient, type NodeRuntime, type Runtime, consensusMedianAggregation } from '@chainlink/cre-sdk'
 import { type Hex, decodeFunctionResult, encodeFunctionData } from 'viem'
-import { aggregatorV3Abi, guardAbi, marketAbi } from './abi'
+import { aggregatorV3Abi, guardAbi, marketAbi, perplExchangeAbi } from './abi'
 import { call } from './chain'
 import type { Config, Market } from './config'
-import type { GuardView, MarketSnapshot } from './policy'
+import type { GuardView, MarketSnapshot, References } from './policy'
 import { EXCHANGES, PRICE_DECIMALS, median, rescale } from './prices'
 
 export const readMarket = (runtime: Runtime<Config>, market: Market): MarketSnapshot => {
@@ -55,6 +55,36 @@ export const readChainlink = (runtime: Runtime<Config>, observedAt: bigint): big
 		return rescale(answer, feed.decimals, PRICE_DECIMALS)
 	} catch (error) {
 		runtime.log(`chainlink feed unreadable: ${(error as Error).message}`)
+		return undefined
+	}
+}
+
+/**
+ * Perpl perpetual on Monad: oracle price (Chainlink Data Streams, verified on-chain by the exchange) and the order
+ * book's mark price, as 8-decimal USD. Undefined if unreadable, stale, or the market ignores its oracle.
+ */
+export const readPerpl = (runtime: Runtime<Config>, observedAt: bigint): References['perpl'] => {
+	const perpl = runtime.config.reference.perpl
+	if (!perpl) return undefined
+	try {
+		const data = call(
+			runtime,
+			perpl.chainSelectorName,
+			perpl.exchange as Hex,
+			encodeFunctionData({ abi: perplExchangeAbi, functionName: 'getPerpetualInfoV2', args: [BigInt(perpl.perpId)] }),
+		)
+		const p = decodeFunctionResult({ abi: perplExchangeAbi, functionName: 'getPerpetualInfoV2', data })
+		const maxAge = BigInt(perpl.maxAgeSeconds)
+		const age = (t: bigint) => (observedAt > t ? observedAt - t : 0n)
+		if (p.ignOracle || p.oraclePNS === 0n || p.markPNS === 0n) return undefined
+		if (age(p.oracleTimestampSec) > maxAge || age(p.markTimestamp) > maxAge) {
+			runtime.log(`perpl ${p.symbol} stale: oracle ${age(p.oracleTimestampSec)}s, mark ${age(p.markTimestamp)}s`)
+			return undefined
+		}
+		const decimals = Number(p.priceDecimals)
+		return { oracle: rescale(p.oraclePNS, decimals, PRICE_DECIMALS), mark: rescale(p.markPNS, decimals, PRICE_DECIMALS) }
+	} catch (error) {
+		runtime.log(`perpl unreadable: ${(error as Error).message}`)
 		return undefined
 	}
 }

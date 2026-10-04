@@ -14,6 +14,7 @@ export const Reason = {
 	REFERENCE_UNAVAILABLE: 1 << 3,
 	UTILIZATION: 1 << 4,
 	OUTFLOW_VELOCITY: 1 << 5,
+	PERP_DISLOCATION: 1 << 6,
 	MANUAL: 1 << 30,
 	LIVENESS: 2 ** 31,
 } as const

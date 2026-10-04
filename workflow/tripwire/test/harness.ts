@@ -1,12 +1,12 @@
 import { bytesToHex, hexToBytes } from '@chainlink/cre-sdk'
 import { EvmMock, HttpActionsMock, REPORT_METADATA_HEADER_LENGTH } from '@chainlink/cre-sdk/test'
 import { type Hex, decodeFunctionData, encodeFunctionResult, pad, toHex } from 'viem'
-import { aggregatorV3Abi, guardAbi, marketAbi } from '../src/abi'
+import { aggregatorV3Abi, guardAbi, marketAbi, perplExchangeAbi } from '../src/abi'
 import { Level } from '../src/codes'
 import type { MarketSnapshot } from '../src/policy'
 
 const b64 = (hex: Hex) => Buffer.from(hexToBytes(hex)).toString('base64')
-const readAbi = [...guardAbi, ...marketAbi, ...aggregatorV3Abi]
+const readAbi = [...guardAbi, ...marketAbi, ...aggregatorV3Abi, ...perplExchangeAbi]
 
 export type GuardState = {
 	level?: Level
@@ -24,6 +24,8 @@ export type ChainState = {
 	guards?: Record<string, GuardState>
 	/** latestRoundData() per feed address (lowercase); `throws` simulates an unreadable feed. */
 	feeds?: Record<string, { answer: bigint; updatedAt: bigint } | 'throws'>
+	/** Perpl getPerpetualInfoV2 per exchange address (lowercase), prices with 2 decimals like the ETH perp. */
+	perpl?: Record<string, { oraclePNS: bigint; markPNS: bigint; oracleTimestampSec: bigint; markTimestamp: bigint; ignOracle?: boolean }>
 	/** Receivers whose onReport reverts (the Forwarder still succeeds). */
 	revertingReceivers?: string[]
 }
@@ -80,6 +82,24 @@ export const wireChain = (selector: bigint, state: ChainState) => {
 					abi: aggregatorV3Abi,
 					functionName: 'latestRoundData',
 					result: [1n, f.answer, f.updatedAt, f.updatedAt, 1n],
+				})
+				break
+			}
+			case 'getPerpetualInfoV2': {
+				const p = state.perpl?.[to]
+				if (!p) throw new Error(`no perpl exchange at ${to}`)
+				data = encodeFunctionResult({
+					abi: perplExchangeAbi,
+					functionName: 'getPerpetualInfoV2',
+					result: {
+						name: 'ETH Perp', symbol: 'ETH', priceDecimals: 2n, lotDecimals: 3n, linkFeedId: pad('0x01'),
+						priceTolPer100K: 5000n, marginTol: 100n, marginTolDecimals: 9n, refPriceMaxAgeSec: 60n,
+						positionBalanceCNS: 0n, insuranceBalanceCNS: 0n, markPNS: p.markPNS, markTimestamp: p.markTimestamp,
+						lastPNS: p.markPNS, lastTimestamp: p.markTimestamp, oraclePNS: p.oraclePNS, oracleTimestampSec: p.oracleTimestampSec,
+						longOpenInterestLNS: 0n, shortOpenInterestLNS: 0n, fundingStartBlock: 0n, fundingRatePct100k: 0,
+						absFundingClampPctPer100K: 10n, status: 4, basePricePNS: 0n, maxBidPriceONS: 0n, minBidPriceONS: 0n,
+						maxAskPriceONS: 0n, minAskPriceONS: 0n, numOrders: 0n, ignOracle: p.ignOracle ?? false, fundingSumScalingExp: 0n,
+					},
 				})
 				break
 			}

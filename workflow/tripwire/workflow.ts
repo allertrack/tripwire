@@ -4,7 +4,7 @@ import { reportParams } from './src/abi'
 import { selectorOf, writeReport } from './src/chain'
 import { levelName, reasonNames } from './src/codes'
 import { type Config, type Market, configSchema } from './src/config'
-import { readChainlink, readExchanges, readGuard, readMarket } from './src/observe'
+import { readChainlink, readExchanges, readGuard, readMarket, readPerpl } from './src/observe'
 import { type Assessment, type References, assess, decideWrite, packMetrics } from './src/policy'
 
 export { configSchema }
@@ -31,7 +31,8 @@ const describe = (a: Assessment): string => {
 	return (
 		`${levelName(a.level)}${reasons.length ? ` [${reasons.join(',')}]` : ''} ` +
 		`deviation=${m.deviationBps}bps spread=${m.spreadBps}bps utilization=${m.utilizationBps}bps ` +
-		`outflow=${m.outflowBps}bps oracleAge=${m.oracleAgeSeconds}s market=${m.marketPrice} reference=${m.referencePrice}`
+		`outflow=${m.outflowBps}bps perpDislocation=${m.perpDislocationBps}bps oracleAge=${m.oracleAgeSeconds}s ` +
+		`market=${m.marketPrice} reference=${m.referencePrice}`
 	)
 }
 
@@ -66,8 +67,10 @@ export const onTick = (runtime: Runtime<Config>, payload?: CronPayload): string 
 	const references: References = {
 		chainlink: readChainlink(runtime, observedAt),
 		exchanges: readExchanges(runtime),
+		perpl: readPerpl(runtime, observedAt),
 	}
-	runtime.log(`references: chainlink=${references.chainlink ?? '-'} exchanges=${references.exchanges ?? '-'}`)
+	const perpl = references.perpl ? `${references.perpl.oracle}/mark ${references.perpl.mark}` : '-'
+	runtime.log(`references: chainlink=${references.chainlink ?? '-'} exchanges=${references.exchanges ?? '-'} perpl=${perpl}`)
 
 	const results: string[] = []
 	const failures: string[] = []

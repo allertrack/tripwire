@@ -114,6 +114,37 @@ describe('risk model', () => {
 		expect(a.metrics.sources).toBe(2)
 	})
 
+	test('Perpl oracle is a third reference; spread is measured across all references', () => {
+		const a = assess(obs({ references: { chainlink: ETH, exchanges: ETH, perpl: { oracle: pct(ETH, 102n), mark: pct(ETH, 102n) } } }), thresholds)
+		expect(a.metrics.sources).toBe(7)
+		expect(a.metrics.spreadBps).toBe(200n)
+		expect(a.reasons).toBe(Reason.REFERENCE_DIVERGENCE)
+	})
+
+	test('Perpl alone can judge the market when the others are down', () => {
+		const a = assess(obs({ references: { perpl: { oracle: ETH, mark: ETH } }, market: healthyMarket({ price: pct(ETH, 107n) }) }), thresholds)
+		expect(a.level).toBe(Level.Restricted)
+		expect(a.metrics.sources).toBe(4)
+	})
+
+	test.each([
+		[100_14n, Level.Normal],
+		[101_50n, Level.Caution],
+		[104_00n, Level.Restricted],
+		[110_00n, Level.Frozen],
+	])('perp mark at %d/10000 of its oracle -> level %d', (ratio, expected) => {
+		const a = assess(obs({ references: { chainlink: ETH, perpl: { oracle: ETH, mark: (ETH * ratio) / 10_000n } } }), thresholds)
+		expect(a.level).toBe(expected)
+		if (expected !== Level.Normal) expect(a.reasons).toBe(Reason.PERP_DISLOCATION)
+	})
+
+	test('perp dislocation is only a signal when the market configures a ladder for it', () => {
+		const { perpDislocationBps: _, ...noLadder } = thresholds
+		const a = assess(obs({ references: { chainlink: ETH, perpl: { oracle: ETH, mark: pct(ETH, 120n) } } }), noLadder)
+		expect(a.level).toBe(Level.Normal)
+		expect(a.metrics.perpDislocationBps).toBe(2_000n)
+	})
+
 	test('stale market oracle', () => {
 		const a = assess(obs({ market: healthyMarket({ priceUpdatedAt: NOW - 3_601n }) }), thresholds)
 		expect(a.level).toBe(Level.Restricted)

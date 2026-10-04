@@ -16,6 +16,7 @@ import {
 	MARKET_2,
 	MONAD_TESTNET,
 	NOW,
+	PERPL,
 	config,
 	healthyMarket,
 	market,
@@ -25,10 +26,16 @@ import { type ChainState, exchangeBodies, wireChain, wireExchanges } from './har
 const payload = { scheduledExecutionTime: { seconds: NOW, nanos: 0 } } as unknown as CronPayload
 const lc = (a: Hex) => a.toLowerCase() as Hex
 
+/** Perpl ETH perp (2 price decimals): oracle $2,700.00, mark $2,700.40, both a few seconds old. */
+const perplEth = (markPNS = 270_040n, oraclePNS = 270_000n, age = 3n) => ({
+	[lc(PERPL)]: { oraclePNS, markPNS, oracleTimestampSec: NOW - age, markTimestamp: NOW - age },
+})
+
 const healthyChain = (overrides: Partial<ChainState> = {}): ChainState => ({
 	markets: { [lc(MARKET)]: healthyMarket() },
 	guards: { [lc(GUARD)]: { lastObservedAt: NOW - 30n } },
 	feeds: { [lc(FEED)]: { answer: ETH, updatedAt: NOW - 600n } },
+	perpl: perplEth(),
 	...overrides,
 })
 
@@ -54,7 +61,12 @@ describe('onTick', () => {
 		const { result, reports, monad, http } = run(healthyChain())
 		expect(result).toBe('tWETH/tUSDC:skip')
 		expect(reports).toHaveLength(0)
-		expect(monad.reads.sort()).toEqual([`latestRoundData@${lc(FEED)}`, `riskSnapshot@${lc(MARKET)}`, `status@${lc(GUARD)}`])
+		expect(monad.reads.sort()).toEqual([
+			`getPerpetualInfoV2@${lc(PERPL)}`,
+			`latestRoundData@${lc(FEED)}`,
+			`riskSnapshot@${lc(MARKET)}`,
+			`status@${lc(GUARD)}`,
+		])
 		expect(http.requests).toHaveLength(3)
 	})
 
@@ -81,14 +93,15 @@ describe('onTick', () => {
 		const m = unpackMetrics(r.metrics)
 		expect(m.deviationBps).toBe(3_000n)
 		expect(m.marketPrice).toBe((ETH * 13n) / 10n)
-		expect(m.sources).toBe(3)
+		expect(m.sources).toBe(7)
+		expect(m.perpDislocationBps).toBe(1n)
 		expect(logs).toContain('Frozen [ORACLE_DEVIATION]')
 	})
 
 	test('the exchange reference is the median of the exchanges that answered', () => {
 		// Chainlink unreadable; Coinbase down. Median of Kraken/Bitstamp = 2,710 => market at 2,700 deviates 0.37%.
 		const { reports } = run(
-			healthyChain({ feeds: { [lc(FEED)]: 'throws' }, guards: { [lc(GUARD)]: { lastObservedAt: NOW - 300n } } }),
+			healthyChain({ feeds: { [lc(FEED)]: 'throws' }, perpl: {}, guards: { [lc(GUARD)]: { lastObservedAt: NOW - 300n } } }),
 			{ ...exchangeBodies('0', '2705.00', '2715.00'), 'api.coinbase.com': 'throws' },
 		)
 		const m = unpackMetrics(reports[0].metrics)
@@ -98,11 +111,11 @@ describe('onTick', () => {
 		expect(reports[0].level).toBe(Level.Normal)
 	})
 
-	test('too few exchanges answer: falls back to Chainlink alone', () => {
+	test('too few exchanges answer: falls back to the on-chain references', () => {
 		const { reports } = run(healthyChain({ guards: { [lc(GUARD)]: { lastObservedAt: NOW - 300n } } }), {
 			'api.kraken.com': exchangeBodies('1', '2700', '1')['api.kraken.com'],
 		})
-		expect(unpackMetrics(reports[0].metrics).sources).toBe(1)
+		expect(unpackMetrics(reports[0].metrics).sources).toBe(5) // Chainlink + Perpl
 		expect(reports[0].level).toBe(Level.Normal)
 	})
 
@@ -110,12 +123,26 @@ describe('onTick', () => {
 		const { reports } = run(
 			healthyChain({ feeds: { [lc(FEED)]: { answer: ETH * 2n, updatedAt: NOW - 90_001n } }, guards: { [lc(GUARD)]: { lastObservedAt: NOW - 300n } } }),
 		)
-		expect(unpackMetrics(reports[0].metrics).sources).toBe(2)
+		expect(unpackMetrics(reports[0].metrics).sources).toBe(6) // exchanges + Perpl
 		expect(reports[0].level).toBe(Level.Normal)
 	})
 
+	test('Perpl: stale or oracle-less perp markets are not used as a reference', () => {
+		for (const perpl of [perplEth(270_040n, 270_000n, 121n), { [lc(PERPL)]: { ...perplEth()[lc(PERPL)], ignOracle: true } }]) {
+			const { reports } = run(healthyChain({ perpl, guards: { [lc(GUARD)]: { lastObservedAt: NOW - 300n } } }))
+			expect(unpackMetrics(reports[0].metrics).sources).toBe(3)
+		}
+	})
+
+	test("Perpl: Monad's own perp order book dislocating from its oracle raises Caution", () => {
+		const { result, reports } = run(healthyChain({ perpl: perplEth(275_000n) })) // mark 1.85% above oracle
+		expect(result).toStartWith('tWETH/tUSDC:trip:Caution')
+		expect(reports[0].reasons).toBe(Reason.PERP_DISLOCATION)
+		expect(unpackMetrics(reports[0].metrics).perpDislocationBps).toBe(185n)
+	})
+
 	test('no reference at all: fails safe to Caution', () => {
-		const { result, reports } = run(healthyChain({ feeds: {} }), {})
+		const { result, reports } = run(healthyChain({ feeds: {}, perpl: {} }), {})
 		expect(result).toStartWith('tWETH/tUSDC:trip:Caution')
 		expect(reports[0].reasons).toBe(Reason.REFERENCE_UNAVAILABLE)
 	})

@@ -14,7 +14,13 @@
       "decimals": 8,
       "maxAgeSeconds": 90000
     },
-    "maxSpreadBps": 150
+    "maxSpreadBps": 150,
+    "perpl": {
+      "chainSelectorName": "monad-testnet",
+      "exchange": "0x1964C32f0bE608E7D29302AFF5E61268E72080cc",
+      "perpId": 32,
+      "maxAgeSeconds": 120
+    }
   },
   "markets": [
     {
@@ -43,7 +49,12 @@
         "maxOracleAgeSeconds": 3600,
         "staleOracleLevel": 2,
         "referenceDivergenceLevel": 1,
-        "referenceUnavailableLevel": 1
+        "referenceUnavailableLevel": 1,
+        "perpDislocationBps": [
+          150,
+          400,
+          1000
+        ]
       }
     }
   ]

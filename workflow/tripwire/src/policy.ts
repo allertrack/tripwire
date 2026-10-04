@@ -21,8 +21,12 @@ export type MarketSnapshot = {
 
 /** Independent references, 8-decimal USD. `undefined` = could not be read (or too old to trust). */
 export type References = {
+	/** Chainlink Data Feed on Monad. */
 	chainlink?: bigint
+	/** DON-consensus median of public exchanges. */
 	exchanges?: bigint
+	/** Perpl perpetual on Monad: oracle price (Chainlink Data Streams, pushed on-chain) and order-book mark price. */
+	perpl?: { oracle: bigint; mark: bigint }
 }
 
 export type Observation = {
@@ -40,8 +44,9 @@ export type Metrics = {
 	oracleAgeSeconds: bigint
 	marketPrice: bigint
 	referencePrice: bigint
-	/** bit 0: Chainlink used, bit 1: exchange median used. */
+	/** bit 0: Chainlink Data Feed, bit 1: exchange median, bit 2: Perpl oracle. */
 	sources: number
+	perpDislocationBps: bigint
 }
 
 export type Assessment = {
@@ -88,6 +93,10 @@ export const assess = (obs: Observation, t: Thresholds): Assessment => {
 		refs.push(references.exchanges)
 		sources |= 2
 	}
+	if (references.perpl !== undefined && references.perpl.oracle > 0n) {
+		refs.push(references.perpl.oracle)
+		sources |= 4
+	}
 
 	// 1. Price integrity: the market's oracle against the closest independent reference.
 	let deviationBps = 0n
@@ -110,12 +119,20 @@ export const assess = (obs: Observation, t: Thresholds): Assessment => {
 		raise(ladderLevel(deviationBps, t.deviationBps), Reason.ORACLE_DEVIATION)
 	}
 
-	// 2. Reference integrity: Chainlink and the exchanges should agree with each other.
+	// 2. Reference integrity: the independent references should agree with each other.
 	let spreadBps = 0n
-	if (refs.length === 2) {
-		const [a, b] = refs
-		spreadBps = ratioBps(absDiff(a, b), a < b ? a : b)
+	if (refs.length >= 2) {
+		const lo = refs.reduce((a, b) => (a < b ? a : b))
+		const hi = refs.reduce((a, b) => (a > b ? a : b))
+		spreadBps = ratioBps(hi - lo, lo)
 		if (spreadBps > BigInt(obs.maxSpreadBps)) raise(t.referenceDivergenceLevel, Reason.REFERENCE_DIVERGENCE)
+	}
+
+	// 2b. Market stress on Monad itself: Perpl's order book dislocating from its oracle.
+	let perpDislocationBps = 0n
+	if (references.perpl !== undefined && references.perpl.oracle > 0n && references.perpl.mark > 0n) {
+		perpDislocationBps = ratioBps(absDiff(references.perpl.mark, references.perpl.oracle), references.perpl.oracle)
+		if (t.perpDislocationBps) raise(ladderLevel(perpDislocationBps, t.perpDislocationBps), Reason.PERP_DISLOCATION)
 	}
 
 	// 3. Oracle liveness: the market's own feed stopped updating.
@@ -137,6 +154,7 @@ export const assess = (obs: Observation, t: Thresholds): Assessment => {
 		marketPrice: cap(marketPrice, MAX_U64),
 		referencePrice: cap(referencePrice, MAX_U64),
 		sources,
+		perpDislocationBps: cap(perpDislocationBps, MAX_U16),
 	}
 	return { level, reasons, metrics, evidenceHash: evidenceHash(obs) }
 }
@@ -144,7 +162,7 @@ export const assess = (obs: Observation, t: Thresholds): Assessment => {
 /**
  * Packs metrics into the report's opaque uint256 (layout documented in docs/REPORT.md):
  * [0,16) deviation · [16,32) spread · [32,48) utilization · [48,64) outflow (bps) · [64,96) oracle age (s) ·
- * [96,160) market price · [160,224) reference price (8-dec USD) · [224,232) sources.
+ * [96,160) market price · [160,224) reference price (8-dec USD) · [224,232) sources · [232,248) perp dislocation.
  */
 export const packMetrics = (m: Metrics): bigint =>
 	m.deviationBps |
@@ -154,7 +172,8 @@ export const packMetrics = (m: Metrics): bigint =>
 	(m.oracleAgeSeconds << 64n) |
 	(m.marketPrice << 96n) |
 	(m.referencePrice << 160n) |
-	(BigInt(m.sources) << 224n)
+	(BigInt(m.sources) << 224n) |
+	(m.perpDislocationBps << 232n)
 
 export const unpackMetrics = (packed: bigint): Metrics => ({
 	deviationBps: packed & MAX_U16,
@@ -165,6 +184,7 @@ export const unpackMetrics = (packed: bigint): Metrics => ({
 	marketPrice: (packed >> 96n) & MAX_U64,
 	referencePrice: (packed >> 160n) & MAX_U64,
 	sources: Number((packed >> 224n) & 0xffn),
+	perpDislocationBps: (packed >> 232n) & MAX_U16,
 })
 
 /** Commits to every input of the assessment, so anyone can re-run the model on the logged observation. */
@@ -182,6 +202,8 @@ export const evidenceHash = (obs: Observation): Hex =>
 				{ type: 'uint8' },
 				{ type: 'uint256' },
 				{ type: 'uint256' },
+				{ type: 'uint256' },
+				{ type: 'uint256' },
 			],
 			[
 				obs.observedAt,
@@ -194,6 +216,8 @@ export const evidenceHash = (obs: Observation): Hex =>
 				obs.market.priceDecimals,
 				obs.references.chainlink ?? 0n,
 				obs.references.exchanges ?? 0n,
+				obs.references.perpl?.oracle ?? 0n,
+				obs.references.perpl?.mark ?? 0n,
 			],
 		),
 	)

@@ -25,8 +25,10 @@ export const thresholdsSchema = z.object({
 	staleOracleLevel: level,
 	/** Chainlink and the exchanges disagree with each other by more than `reference.maxSpreadBps`. */
 	referenceDivergenceLevel: level,
-	/** Neither Chainlink nor the exchanges could be read. */
+	/** No independent reference could be read. */
 	referenceUnavailableLevel: level,
+	/** Perpl perp mark price vs its oracle (stress on Monad's own order book). Optional. */
+	perpDislocationBps: ladder.optional(),
 })
 export type Thresholds = z.infer<typeof thresholdsSchema>
 
@@ -61,10 +63,22 @@ export const configSchema = z.object({
 				maxAgeSeconds: z.number().int().positive(),
 			})
 			.optional(),
-		/** Chainlink vs exchange median spread above which the references themselves are suspect. */
+		/**
+		 * Perpl perpetual on Monad: its on-chain oracle price (Chainlink Data Streams) is a third reference, and its
+		 * mark-vs-oracle dislocation a market-stress signal. Optional.
+		 */
+		perpl: z
+			.object({
+				chainSelectorName: z.string().min(1),
+				exchange: address,
+				perpId: z.number().int().positive(),
+				maxAgeSeconds: z.number().int().positive(),
+			})
+			.optional(),
+		/** Largest spread between references above which the references themselves are suspect. */
 		maxSpreadBps: bps,
 	}),
-	/** 1 feed read + 2 reads per market must stay within CRE's 15 EVM reads per execution. */
-	markets: z.array(marketSchema).min(1).max(7),
+	/** 2 reference reads + 2 reads per market must stay within CRE's 15 EVM reads per execution. */
+	markets: z.array(marketSchema).min(1).max(6),
 })
 export type Config = z.infer<typeof configSchema>

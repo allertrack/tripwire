@@ -33,6 +33,7 @@ library Reasons {
   uint32 internal constant REFERENCE_UNAVAILABLE = 1 << 3;
   uint32 internal constant UTILIZATION = 1 << 4;
   uint32 internal constant OUTFLOW_VELOCITY = 1 << 5;
+  uint32 internal constant PERP_DISLOCATION = 1 << 6;
   uint32 internal constant MANUAL = 1 << 30;
   /// @dev Never stored: added to `status().reasons` while the watcher's heartbeat is overdue.
   uint32 internal constant LIVENESS = 1 << 31;
