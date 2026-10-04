@@ -1,0 +1,12 @@
+{
+  "name": "tripwire-video",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "capture": "bun capture.ts",
+    "render": "bun render.ts"
+  },
+  "dependencies": {
+    "puppeteer-core": "24.22.0"
+  }
+}

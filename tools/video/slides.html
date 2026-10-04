@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tripwire Slides</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0b0e14; --panel:#131924; --ink:#eef1f6; --muted:#8f98aa; --line:#232b38; --accent:#7c9cff; --link:#375bd2;
+    --normal:#3ccf96; --caution:#f2b53b; --restricted:#fb8a4c; --frozen:#ff6b78; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1920px; height: 1080px; background: var(--bg); color: var(--ink); font-family: Inter, sans-serif; overflow: hidden; }
+  section { display: none; width: 1920px; height: 1080px; padding: 110px 140px; position: relative; }
+  section.on { display: flex; flex-direction: column; }
+  .kicker { color: var(--accent); font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 26px; margin-bottom: 26px; }
+  h1 { font-size: 112px; font-weight: 800; letter-spacing: -.035em; line-height: 1; }
+  h2 { font-size: 68px; font-weight: 800; letter-spacing: -.025em; line-height: 1.08; max-width: 1500px; }
+  p.lead { font-size: 40px; color: var(--muted); margin-top: 34px; line-height: 1.35; max-width: 1450px; }
+  .foot { position: absolute; left: 140px; right: 140px; bottom: 70px; display: flex; justify-content: space-between; color: var(--muted); font-size: 24px; }
+  .logo { display: flex; align-items: center; gap: 22px; }
+  .logo svg { width: 96px; height: 96px; color: var(--accent); }
+  .grid { display: grid; gap: 28px; margin-top: 56px; }
+  .g3 { grid-template-columns: repeat(3, 1fr); } .g2 { grid-template-columns: repeat(2, 1fr); } .g4 { grid-template-columns: repeat(4, 1fr); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 34px; }
+  .card h3 { font-size: 34px; margin-bottom: 14px; letter-spacing: -.01em; }
+  .card p { font-size: 26px; color: var(--muted); line-height: 1.4; }
+  .big { font-size: 64px; font-weight: 800; letter-spacing: -.02em; }
+  .flow { display: flex; align-items: stretch; gap: 26px; margin-top: 60px; }
+  .flow .card { flex: 1; }
+  .arrow { align-self: center; font-size: 60px; color: var(--accent); }
+  ul.refs { list-style: none; padding: 0; margin-top: 8px; }
+  ul.refs li { font-size: 25px; color: var(--ink); padding: 9px 0; border-bottom: 1px solid var(--line); }
+  ul.refs li span { color: var(--muted); }
+  .levels > div { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+  .levels > div > span:last-child { color: var(--muted); font-size: 26px; }
+  .lv { display: inline-block; padding: 6px 18px; border-radius: 12px; font-weight: 800; font-size: 28px; }
+  .n { background: #12302a; color: var(--normal); } .c { background: #3a2c10; color: var(--caution); }
+  .r { background: #3d2114; color: var(--restricted); } .f { background: #40171c; color: var(--frozen); }
+  .term { background: #070a0f; border: 1px solid var(--line); border-radius: 22px; margin-top: 40px; overflow: hidden; flex: 1; display: flex; flex-direction: column; }
+  .term .bar { height: 54px; background: #121823; display: flex; align-items: center; gap: 12px; padding: 0 22px; color: var(--muted); font-size: 22px; }
+  .term .bar i { width: 14px; height: 14px; border-radius: 50%; background: #2d3646; display: inline-block; }
+  .term pre { font-family: "JetBrains Mono", monospace; font-size: 25px; line-height: 1.55; padding: 26px 30px; white-space: pre-wrap; word-break: break-word; color: #c9d1de; }
+  .term .hl { color: var(--frozen); font-weight: 700; } .term .ok { color: var(--normal); font-weight: 700; } .term .dim { color: #6b7486; } .term .cmd { color: var(--accent); }
+  .shot { margin-top: 30px; flex: 1; border-radius: 22px; overflow: hidden; border: 1px solid var(--line); background: #0d1016 center top / cover no-repeat; }
+  .caption { font-size: 34px; font-weight: 700; margin-top: 8px; }
+  .caption span { color: var(--muted); font-weight: 500; }
+  table.gas { width: 100%; border-collapse: collapse; font-size: 28px; }
+  table.gas td { padding: 14px 6px; border-bottom: 1px solid var(--line); }
+  table.gas td:last-child { text-align: right; font-family: "JetBrains Mono", monospace; color: var(--normal); }
+</style>
+</head>
+<body>
+
+<section id="title">
+  <div class="logo"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="currentColor" opacity=".12"/><path d="M5 20h6l3-9 4 14 3-9h6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><h1>Tripwire</h1></div>
+  <p class="lead" style="font-size:52px;color:var(--ink);margin-top:56px">A circuit breaker for DeFi markets on Monad,<br>run by Chainlink CRE.</p>
+  <p class="lead">Tightens in seconds. Never loosens on its own.</p>
+  <div class="foot"><span>Monad Metropolis · Track 01 Onchain Finance</span><span>Chainlink CRE · Data Feeds · Data Streams via Perpl</span></div>
+</section>
+
+<section id="problem">
+  <div class="kicker">The problem</div>
+  <h2>When a lending market's oracle breaks, the defence is a human with a multisig.</h2>
+  <div class="grid g3">
+    <div class="card"><div class="big">1 block</div><p>for a manipulated price to turn into bad debt</p></div>
+    <div class="card"><div class="big">minutes–hours</div><p>for someone to notice, coordinate signers and pause</p></div>
+    <div class="card"><div class="big">all-or-nothing</div><p>pauses also block repayments and safe exits</p></div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="kicker">How it works</div>
+  <h2>A CRE workflow watches the market every 30 seconds.</h2>
+  <div class="flow">
+    <div class="card"><h3>Observe</h3><ul class="refs">
+      <li>Market's own oracle <span>· on Monad</span></li>
+      <li>Chainlink Data Feed <span>· on Monad</span></li>
+      <li>Coinbase · Kraken · Bitstamp <span>· DON median</span></li>
+      <li>Perpl perp oracle <span>· Data Streams</span></li>
+      <li>Utilization · outflow · perp stress</li></ul></div>
+    <div class="arrow">→</div>
+    <div class="card"><h3>Decide</h3><p>Deterministic risk model on every DON node. Closest reference wins, so one bad source can't trip a healthy market. No reference means Caution.</p></div>
+    <div class="arrow">→</div>
+    <div class="card"><h3>Enforce</h3><p>DON-signed report to the on-chain guard. Markets ask <b style="color:var(--ink)">isAllowed(BORROW)</b>: one storage read, 3.7k gas.</p></div>
+  </div>
+  <div class="grid g4 levels" style="margin-top:44px">
+    <div><span class="lv n">NORMAL</span><span>everything allowed</span></div>
+    <div><span class="lv c">CAUTION</span><span>no new borrows</span></div>
+    <div><span class="lv r">RESTRICTED</span><span>+ no liquidations</span></div>
+    <div><span class="lv f">FROZEN</span><span>only repay / supply</span></div>
+  </div>
+</section>
+
+<section id="dash-normal" data-shot="normal.png">
+  <div class="caption">Live monitor <span>· healthy market, every action allowed, references agree</span></div>
+  <div class="shot"></div>
+</section>
+
+<section id="term-attack" data-term="attack">
+  <div class="caption">The attack <span>· market oracle pushed 30% above reality, next CRE run</span></div>
+  <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp; cre workflow simulate tripwire --broadcast</div><pre></pre></div>
+</section>
+
+<section id="dash-frozen" data-shot="frozen.png">
+  <div class="caption">Tripped <span>· the guard is Frozen; only risk-reducing actions remain</span></div>
+  <div class="shot"></div>
+</section>
+
+<section id="term-borrow" data-term="borrow">
+  <div class="caption">The exploit fails <span>· borrowing against the inflated price reverts</span></div>
+  <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp; attacker</div><pre></pre></div>
+</section>
+
+<section id="relax">
+  <div class="kicker">Tighten-only, two-key relax, fail-safe</div>
+  <h2>Automation can only make a market safer.</h2>
+  <div class="grid g3">
+    <div class="card"><h3>Tighten-only</h3><p>Reports and guardians raise the level, never lower it. A compromised watcher can halt borrowing, not unfreeze anything.</p></div>
+    <div class="card"><h3>Two keys to relax</h3><p>Governance proposes and waits out the delay. Execution needs no new trip since, plus a fresh watcher observation that agrees.</p></div>
+    <div class="card"><h3>Fails safe</h3><p>If the watcher misses its heartbeat, the guard is at least Caution, with no transaction needed.</p></div>
+  </div>
+</section>
+
+<section id="term-relax" data-term="relax">
+  <div class="caption">Recovery <span>· the watcher agrees, anyone executes the matured relax</span></div>
+  <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp; recovery</div><pre></pre></div>
+</section>
+
+<section id="dash-relaxed" data-shot="relaxed.png">
+  <div class="caption">Open again <span>· full trail of signed reports on chain</span></div>
+  <div class="shot"></div>
+</section>
+
+<section id="aave" data-term="aave">
+  <div class="kicker">One-line integration</div>
+  <h2>Drop-in PriceOracleSentinel for Aave V3. Proven on the live Aave V3 market (Sepolia fork).</h2>
+  <div class="term" style="flex:0 0 auto"><div class="bar"><i></i><i></i><i></i>&nbsp; forge test --match-path 'test/fork/*'</div><pre></pre></div>
+</section>
+
+<section id="eng">
+  <div class="kicker">Engineering</div>
+  <h2>Built to be trusted with a pause button.</h2>
+  <div class="grid g2" style="align-items:start">
+    <div class="card"><ul class="refs" id="engList"></ul></div>
+    <div class="card"><table class="gas">
+      <tr><td>isAllowed(action)</td><td>3,771 gas</td></tr>
+      <tr><td>Aave sentinel hook</td><td>3,698 gas</td></tr>
+      <tr><td>Heartbeat report</td><td>43,580 gas</td></tr>
+      <tr><td>Trip report</td><td>51,219 gas</td></tr>
+      <tr><td>Steady-state writes</td><td>12 / hour</td></tr></table></div>
+  </div>
+</section>
+
+<section id="close">
+  <div class="logo"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="currentColor" opacity=".12"/><path d="M5 20h6l3-9 4 14 3-9h6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><h1>Tripwire</h1></div>
+  <p class="lead" style="font-size:52px;color:var(--ink);margin-top:56px">Tighten in seconds. Never loosen alone.</p>
+  <p class="lead" id="closeLinks"></p>
+  <div class="foot"><span>Built for Monad</span><span>Powered by Chainlink CRE</span></div>
+</section>
+
+<script>
+  // ?s=<id> shows one slide; window.__data (set by the capture script) fills terminals, screenshots and links.
+  const id = new URLSearchParams(location.search).get('s') || 'title'
+  const data = window.__data || {}
+  const el = document.getElementById(id)
+  el.classList.add('on')
+  if (el.dataset.term && data.terms) el.querySelector('pre').innerHTML = data.terms[el.dataset.term] || ''
+  if (el.dataset.shot && data.shots) el.querySelector('.shot').style.backgroundImage = `url(${data.shots[el.dataset.shot]})`
+  if (id === 'eng') document.getElementById('engList').innerHTML = (data.eng || []).map((l) => `<li>${l}</li>`).join('')
+  if (id === 'close') document.getElementById('closeLinks').innerHTML = data.links || ''
+</script>
+</body>
+</html>

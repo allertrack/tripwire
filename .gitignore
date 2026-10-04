@@ -23,3 +23,5 @@ workflow/tripwire/.cre_build_tmp.js
 .testnet-address
 dashboard/deployment.local.json
 .claude/
+tools/video/out/
+dashboard/deployment.capture.json

@@ -329,7 +329,15 @@ async function tick() {
     ])
     const now = Number(block.timestamp)
     if (scannedTo === 0n) await backfill(head)
-    else if (head > scannedTo) { await scan(scannedTo + 1n, head > scannedTo + 99n ? scannedTo + 99n : head); scannedTo = head > scannedTo + 99n ? scannedTo + 99n : head; renderFeed() }
+    else if (head > scannedTo) {
+      // Catch up to the head in 100-block chunks (public RPC limit), at most 3,000 blocks per tick.
+      for (let i = 0; i < 30 && scannedTo < head; i++) {
+        const to = head > scannedTo + 100n ? scannedTo + 100n : head
+        await scan(scannedTo + 1n, to)
+        scannedTo = to
+      }
+      renderFeed()
+    }
     renderStatus(status, now)
     renderMarket(market, feed, perp, now)
     $('blockLbl').textContent = `block ${head.toLocaleString('en-US')}`
