@@ -110,7 +110,8 @@ const shot = async (file: string, scrollToFeed = false) => {
 // ─── Scenario ───────────────────────────────────────────────────────────────
 const result: Record<string, unknown> = { mode: MODE, deployment: dep, startedAt: new Date().toISOString() }
 if (level() !== 0) throw new Error('guard must start at Normal')
-send(net.gov, dep.oracle, 'pushAnswer(int256)', chainlinkPrice)
+// The market oracle follows the live Chainlink feed; make sure no rehearsal override is left over.
+if (cast('call', dep.oracle, 'overridden()(bool)') === 'true') send(net.gov, dep.oracle, 'clearOverride()')
 await finalize()
 
 console.log('1/6 healthy run')
@@ -133,7 +134,7 @@ if (borrow.ok) throw new Error('borrow should have reverted')
 result.borrow = borrow.out.match(/TripwirePaused\(\d+\)|custom error[^\n]*/)?.[0] ?? borrow.out.slice(0, 300)
 
 console.log('4/6 oracle fixed')
-send(net.gov, dep.oracle, 'pushAnswer(int256)', chainlinkPrice)
+send(net.gov, dep.oracle, 'clearOverride()') // back to the live Chainlink feed
 await finalize()
 result.recovery = simulate()
 
@@ -150,6 +151,7 @@ const relaxTx = JSON.parse(send(net.anyone, dep.guard, 'executeRelax()')).transa
 await waitLevel('NORMAL')
 const borrowAfter = run(['cast', 'send', dep.pool, 'borrow(uint256)', '1000000000', '--private-key', net.gov, '--rpc-url', net.rpc])
 result.relax = { proposeTx, relaxTx, borrowAfterOk: borrow.ok === false && borrowAfter.ok }
+await page.waitForFunction(() => document.getElementById('feed')?.textContent?.includes('RELAXED'), { timeout: 60_000 })
 await shot('relaxed.png', true)
 
 result.finishedAt = new Date().toISOString()

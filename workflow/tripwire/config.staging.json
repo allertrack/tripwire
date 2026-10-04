@@ -46,7 +46,7 @@
           2500,
           5000
         ],
-        "maxOracleAgeSeconds": 3600,
+        "maxOracleAgeSeconds": 90000,
         "staleOracleLevel": 2,
         "referenceDivergenceLevel": 1,
         "referenceUnavailableLevel": 1,

@@ -138,23 +138,24 @@ All contracts are verified on MonadVision (Sourcify). The source of truth is [`c
 
 | Contract | Address |
 |---|---|
-| TripwireGuard | [`0x7c12d527b8047F53F2e019F83b45b9aeBB981658`](https://testnet.monadvision.com/address/0x7c12d527b8047F53F2e019F83b45b9aeBB981658) |
-| GuardedLendingPool (demo market) | [`0x15Ac97a7031bB3777AA1B85DFBFB11319BD244dC`](https://testnet.monadvision.com/address/0x15Ac97a7031bB3777AA1B85DFBFB11319BD244dC) |
-| DemoOracle (the market's own oracle) | [`0xcEAcE91ed8fC52654F477329E0B14476940D3f94`](https://testnet.monadvision.com/address/0xcEAcE91ed8fC52654F477329E0B14476940D3f94) |
-| tWETH / tUSDC (demo tokens) | [`0xFb443e7b653BC40FcF004c34445bc7fC41244Da2`](https://testnet.monadvision.com/address/0xFb443e7b653BC40FcF004c34445bc7fC41244Da2) / [`0x0938305adC809B9089C7baA89Dc6d173AeEe3212`](https://testnet.monadvision.com/address/0x0938305adC809B9089C7baA89Dc6d173AeEe3212) |
+| TripwireGuard | [`0xdA885CAaEB99F17ABA08Ba3BC244841D7E557956`](https://testnet.monadvision.com/address/0xdA885CAaEB99F17ABA08Ba3BC244841D7E557956) |
+| GuardedLendingPool (demo market) | [`0xDbCC77a967cf2B9602873B82080B487BAD9C3A09`](https://testnet.monadvision.com/address/0xDbCC77a967cf2B9602873B82080B487BAD9C3A09) |
+| DemoOracle (the market's own oracle; follows Chainlink ETH/USD unless overridden for a rehearsal) | [`0xaeb7af6f3D14Ad4d3d00e4e214E7E6C7A65E4B44`](https://testnet.monadvision.com/address/0xaeb7af6f3D14Ad4d3d00e4e214E7E6C7A65E4B44) |
+| tWETH / tUSDC (demo tokens) | [`0x7d0d68aa5A191620fAE0f1D7B780Cb45f14cB0a4`](https://testnet.monadvision.com/address/0x7d0d68aa5A191620fAE0f1D7B780Cb45f14cB0a4) / [`0xF024aCaDdF72EE217CFe3746A3810670275BBb04`](https://testnet.monadvision.com/address/0xF024aCaDdF72EE217CFe3746A3810670275BBb04) |
 | CRE MockKeystoneForwarder (simulation) | `0xB9F79d863261869B234c481D1f9A7af84AeAd192` |
 | Chainlink ETH/USD Data Feed | `0x5c8c8482f064049248F86D9F4aFa4B1f2F5b6d31` |
 | Perpl exchange (ETH perp, id 32) | `0x1964C32f0bE608E7D29302AFF5E61268E72080cc` |
 
 **The attack and recovery on chain, recorded for the demo video:**
-1. [oracle pushed +30%](https://testnet.monadvision.com/tx/0x507575957db85e00c0d3c1a2d56bf997cf943d6b5e045b0c72337123879ae615)
-2. [CRE report trips the guard to Frozen](https://testnet.monadvision.com/tx/0x7e54db96d3e9fd1f5dbedd6cac62b7ada234c6f9a23085998d519f8da74af498)
+1. [market oracle overridden +30%](https://testnet.monadvision.com/tx/0xf6f05a1c9ce54fecfbff2f337cdefd2b390651f745c71f9d342f9c7446f2abe3)
+2. [CRE report trips the guard to Frozen](https://testnet.monadvision.com/tx/0x7cb09a949cf57e56233e0fcfcebafcfc2340951d6c0bec91a2750dde546e85fc)
 3. borrow reverts with `TripwirePaused(1)`
-4. [governance proposes relax](https://testnet.monadvision.com/tx/0xcfdb0e44b6ca086f590638198c12277ba34c9eaa6569002edaa81039e64e9f49)
-5. [watcher sends fresh evidence](https://testnet.monadvision.com/tx/0x2b344bfaf2c1ba3f1968f0716b3ce31f78c13cb4fa4cf2219366d194f3c6f5a0)
-6. [anyone executes the relax](https://testnet.monadvision.com/tx/0x45ce78f4369ee33d73e1afeedb1bd97c60def70cde4bff10111a61c250cb96de)
+4. the oracle goes back to the live feed (`clearOverride`); the watcher reports recovery
+5. [governance proposes relax](https://testnet.monadvision.com/tx/0xe1eea8e5e28894bceb2c7b486b1b48604b23acc332391f58c232cf61b9b4b089)
+6. [watcher sends fresh evidence](https://testnet.monadvision.com/tx/0x07eea161d6d1d90cbc397e4cf3f0bad2fbc94d190b6c9d283f1675c4d684c122)
+7. [anyone executes the relax](https://testnet.monadvision.com/tx/0x50a0169821c4c3e2e8fbb10dd103e040f09c78e98651ddb2f526f37cd3800fc4)
 
-The demo guard uses a 24 h heartbeat. Its watcher runs through `cre workflow simulate` from a laptop until CRE deploy access is granted; production would use 15 min.
+The demo guard uses a 24 h heartbeat. Its watcher runs through `cre workflow simulate` from a laptop until CRE deploy access is granted; production would use 15 min. Because the demo market's oracle follows the Chainlink testnet feed (24 h heartbeat), that market's `maxOracleAgeSeconds` is 25 h.
 
 ## Status and honest limits
 
@@ -164,7 +165,7 @@ The demo guard uses a 24 h heartbeat. Its watcher runs through `cre workflow sim
   - pin the workflow owner (and optionally its name or ID).
 
   `CREReceiver` rejects a production identity that pins nothing.
-- **The demo market is minimal:** one collateral asset, one debt asset, no interest. It exists to show the integration; the product is the guard plus the workflow.
+- **The demo market is minimal:** one collateral asset, one debt asset, no interest. It exists to show the integration; the product is the guard plus the workflow. Its oracle follows the live Chainlink feed, and the owner can override it to rehearse an attack.
 - **Governance:** the guard's owner should be a timelock or multisig, because configuration changes (permissions, liveness, workflow identity) are governance powers.
 - **Not audited.**
 

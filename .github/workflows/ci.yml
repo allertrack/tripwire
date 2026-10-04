@@ -33,7 +33,7 @@ jobs:
       - name: Aave V3 integration (fork of the live Sepolia market)
         env:
           # An unset secret is an empty string, which vm.envOr would return instead of its public default.
-          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com' }}
+          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL || 'https://sepolia.gateway.tenderly.co' }}
         run: forge test --match-path 'test/fork/*' -vv
 
   workflow:

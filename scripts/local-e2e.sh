@@ -65,7 +65,7 @@ fi
 echo "borrow reverted: TripwirePaused(BORROW) (ok)"
 
 say "5. oracle fixed: the workflow reports recovery, the guard stays Frozen (tighten-only)"
-cast send "$ORACLE" "pushAnswer(int256)" "$CL_PRICE" --private-key "$GOV_KEY" --rpc-url "$RPC" >/dev/null
+cast send "$ORACLE" "clearOverride()" --private-key "$GOV_KEY" --rpc-url "$RPC" >/dev/null # back to the live feed
 finalize
 simulate
 expect_level 3

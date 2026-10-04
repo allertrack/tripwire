@@ -329,12 +329,15 @@ async function tick() {
     ])
     const now = Number(block.timestamp)
     if (scannedTo === 0n) await backfill(head)
-    else if (head > scannedTo) {
-      // Catch up to the head in 100-block chunks (public RPC limit), at most 3,000 blocks per tick.
-      for (let i = 0; i < 30 && scannedTo < head; i++) {
-        const to = head > scannedTo + 100n ? scannedTo + 100n : head
-        await scan(scannedTo + 1n, to)
+    else {
+      // Re-read the last 20 blocks every tick (RPC log indexing can trail the head by a few blocks; duplicates are
+      // dropped), then catch up to the head in 100-block chunks (public RPC limit), at most 3,000 blocks per tick.
+      let from = scannedTo > 20n ? scannedTo - 19n : 0n
+      for (let i = 0; i < 30 && from <= head; i++) {
+        const to = head > from + 99n ? from + 99n : head
+        await scan(from, to)
         scannedTo = to
+        from = to + 1n
       }
       renderFeed()
     }

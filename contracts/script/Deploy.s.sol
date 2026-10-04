@@ -16,7 +16,7 @@ import {Script, console2} from "forge-std/Script.sol";
 ///   FORWARDER              default: CRE MockKeystoneForwarder on Monad testnet (simulation)
 ///   TRUST_FORWARDER_ONLY   default: true (simulation forwarder carries no workflow metadata)
 ///   WORKFLOW_OWNER         pin the CRE workflow owner (production forwarder)
-///   CHAINLINK_FEED         seeds the demo oracle with the live Chainlink price (default: ETH/USD on Monad testnet)
+///   CHAINLINK_FEED         live feed the demo market oracle follows (default: ETH/USD on Monad testnet)
 ///   RELAX_DELAY            default 120 s (demo); production should use hours
 contract Deploy is Script {
   uint64 internal constant MONAD_TESTNET_SELECTOR = 2183018362218727504;
@@ -43,7 +43,9 @@ contract Deploy is Script {
     vm.startBroadcast(pk);
     d.weth = new DemoToken("Tripwire Demo WETH", "tWETH", 18, 1e18, deployer);
     d.usdc = new DemoToken("Tripwire Demo USDC", "tUSDC", 6, 10_000e6, deployer);
-    d.oracle = new DemoOracle(8, "tWETH / USD (market oracle)", seedPrice, deployer);
+    // The market oracle follows the live Chainlink feed (like a real market) unless overridden for a rehearsal.
+    AggregatorV3Interface live = feed.code.length != 0 ? AggregatorV3Interface(feed) : AggregatorV3Interface(address(0));
+    d.oracle = new DemoOracle(8, "tWETH / USD (market oracle)", live, seedPrice, deployer);
     d.guard = new TripwireGuard(
       TripwireGuard.InitParams({
         chainSelector: MONAD_TESTNET_SELECTOR,

@@ -77,7 +77,8 @@ const terms = {
 		dim('# TripwirePaused(1) = action BORROW is paused at the current level'),
 	].join('\n'),
 	relax: [
-		dim('# oracle fixed: the watcher reports recovery, the guard stays Frozen (tighten-only)'),
+		cmd('cast send <market oracle> "clearOverride()"   # oracle fixed: back to the live Chainlink feed'),
+		dim('# the watcher reports recovery; the guard stays Frozen (tighten-only)'),
 		...run.recovery.filter((l: string) => !l.startsWith('references')).map(paint),
 		'',
 		cmd('cast send <guard> "proposeRelax(uint8)" 0     # governance, then the delay'),

@@ -5,6 +5,7 @@ import {DemoOracle} from "../src/demo/DemoOracle.sol";
 import {DemoToken} from "../src/demo/DemoToken.sol";
 import {GuardedLendingPool} from "../src/demo/GuardedLendingPool.sol";
 import {TripwireProtected} from "../src/integrations/TripwireProtected.sol";
+import {AggregatorV3Interface} from "../src/interfaces/AggregatorV3Interface.sol";
 import {ITripwireMonitored} from "../src/interfaces/ITripwireMonitored.sol";
 import {Actions, Level, Reasons} from "../src/libraries/TripwireTypes.sol";
 import {GuardFixture} from "./helpers/GuardFixture.sol";
@@ -26,7 +27,8 @@ contract GuardedLendingPoolTest is GuardFixture {
     guard = _deployGuard();
     weth = new DemoToken("Tripwire Demo WETH", "tWETH", 18, 1e18, address(this));
     usdc = new DemoToken("Tripwire Demo USDC", "tUSDC", 6, 10_000e6, address(this));
-    oracle = new DemoOracle(8, "tWETH / USD (market oracle)", ETH_PRICE, address(this));
+    oracle =
+      new DemoOracle(8, "tWETH / USD (market oracle)", AggregatorV3Interface(address(0)), ETH_PRICE, address(this));
     pool = new GuardedLendingPool(weth, usdc, oracle, guard, WINDOW);
 
     usdc.mint(lender, 1_000_000e6);
@@ -209,6 +211,40 @@ contract GuardedLendingPoolTest is GuardFixture {
     assertEq(pool.riskSnapshot().windowOutflow, 75_000e6);
     vm.warp(block.timestamp + WINDOW);
     assertEq(pool.riskSnapshot().windowOutflow, 0);
+  }
+
+  // ─── Demo oracle ─────────────────────────────────────────────────────────
+
+  /// @dev The deployed demo market follows a live feed and is only overridden to rehearse an attack.
+  function test_demoOracle_followsSourceUntilOverridden() public {
+    DemoOracle live = new DemoOracle(8, "live feed", AggregatorV3Interface(address(0)), 2_702e8, address(this));
+    DemoOracle market = new DemoOracle(8, "market", live, 0, address(this));
+    assertFalse(market.overridden());
+    (, int256 answer,, uint256 updatedAt,) = market.latestRoundData();
+    assertEq(answer, 2_702e8);
+    assertEq(updatedAt, block.timestamp);
+
+    vm.warp(block.timestamp + 100);
+    market.pushAnswer(3_500e8); // attack
+    (, answer,, updatedAt,) = market.latestRoundData();
+    assertEq(answer, 3_500e8);
+    assertEq(updatedAt, block.timestamp);
+
+    market.clearOverride(); // back to the live feed
+    (, answer,,,) = market.latestRoundData();
+    assertEq(answer, 2_702e8);
+  }
+
+  function test_demoOracle_guards() public {
+    DemoOracle manual = new DemoOracle(8, "manual", AggregatorV3Interface(address(0)), 1e8, address(this));
+    vm.expectRevert(DemoOracle.NoSource.selector);
+    manual.clearOverride();
+    DemoOracle sixDecimals = new DemoOracle(6, "6d", AggregatorV3Interface(address(0)), 1e6, address(this));
+    vm.expectRevert(abi.encodeWithSelector(DemoOracle.DecimalsMismatch.selector, 6, 8));
+    new DemoOracle(8, "mismatch", sixDecimals, 0, address(this));
+    vm.prank(lender);
+    vm.expectRevert();
+    manual.pushAnswer(2e8);
   }
 
   function testFuzz_borrowNeverExceedsLtv(

@@ -26,8 +26,8 @@
     {
       "name": "tWETH/tUSDC",
       "chainSelectorName": "monad-testnet",
-      "guard": "0x7c12d527b8047F53F2e019F83b45b9aeBB981658",
-      "market": "0x15Ac97a7031bB3777AA1B85DFBFB11319BD244dC",
+      "guard": "0xdA885CAaEB99F17ABA08Ba3BC244841D7E557956",
+      "market": "0xDbCC77a967cf2B9602873B82080B487BAD9C3A09",
       "gasLimit": "150000",
       "heartbeatRefreshSeconds": 300,
       "thresholds": {
@@ -46,7 +46,7 @@
           2500,
           5000
         ],
-        "maxOracleAgeSeconds": 3600,
+        "maxOracleAgeSeconds": 90000,
         "staleOracleLevel": 2,
         "referenceDivergenceLevel": 1,
         "referenceUnavailableLevel": 1,

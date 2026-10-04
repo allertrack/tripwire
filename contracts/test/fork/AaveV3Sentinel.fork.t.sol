@@ -66,7 +66,7 @@ contract AaveV3SentinelForkTest is GuardFixture {
   address internal liquidator = makeAddr("aaveLiquidator");
 
   function setUp() public {
-    vm.createSelectFork(vm.envOr("SEPOLIA_RPC_URL", string("https://ethereum-sepolia-rpc.publicnode.com")), FORK_BLOCK);
+    vm.createSelectFork(vm.envOr("SEPOLIA_RPC_URL", string("https://sepolia.gateway.tenderly.co")), FORK_BLOCK);
     guard = _deployGuard();
     pool = IAavePool(PROVIDER.getPool());
     aaveOracle = IAaveOracle(PROVIDER.getPriceOracle());
