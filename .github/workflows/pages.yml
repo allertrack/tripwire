@@ -1,0 +1,36 @@
+name: Monitor (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+    paths: ['dashboard/**', 'contracts/deployments/monad-testnet.json']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bundle the static monitor with the live testnet deployment
+        run: |
+          mkdir -p site
+          cp dashboard/index.html site/
+          cp contracts/deployments/monad-testnet.json site/deployment.json
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
